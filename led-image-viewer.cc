@@ -106,17 +106,6 @@ static void StoreInStream(const Magick::Image &img, int delay_time_us,
   output->Stream(*scratch, delay_time_us);
 }
 
-static void CopyStream(rgb_matrix::StreamReader *r,
-                       rgb_matrix::StreamWriter *w,
-                       rgb_matrix::FrameCanvas *scratch) {
-  uint32_t delay_us;
-  while (r->GetNext(scratch, &delay_us)) {
-    w->Stream(*scratch, delay_us);
-  }
-}
-
-// Load still image or animation.
-// Scale, so that it fits in "width" and "height" and store in "result".
 static bool LoadImageAndScale(const char *filename,
                               int target_width, int target_height,
                               bool fill_width, bool fill_height,
