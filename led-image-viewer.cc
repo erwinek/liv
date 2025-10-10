@@ -259,6 +259,13 @@ int main(int argc, char *argv[]) {
   RGBMatrix::Options matrix_options;
   rgb_matrix::RuntimeOptions runtime_opt;
 
+  matrix_options.rows = 64;
+  matrix_options.cols = 64;
+  matrix_options.chain_length = 3; // 64*3 = 192 px
+  matrix_options.parallel = 3;     // 64*3 = 192 px
+  matrix_options.hardware_mapping = "regular";
+  runtime_opt.gpio_slowdown = 3;
+
   // Use default options
   runtime_opt.drop_priv_user = getenv("SUDO_UID");
   runtime_opt.drop_priv_group = getenv("SUDO_GID");
