@@ -1,9 +1,7 @@
 CXXFLAGS=-O3 -W -Wall -Wextra -Wno-unused-parameter -D_FILE_OFFSET_BITS=64
-OBJECTS=led-image-viewer.o text-scroller.o
-BINARIES=led-image-viewer text-scroller
+OBJECTS=led-image-viewer.o
+BINARIES=led-image-viewer
 
-OPTIONAL_OBJECTS=video-viewer.o
-OPTIONAL_BINARIES=video-viewer
 
 # Where our library resides. You mostly only need to change the
 # RGB_LIB_DISTRIBUTION, this is where the library is checked out.
