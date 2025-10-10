@@ -248,276 +248,75 @@ static int usage(const char *progname) {
 }
 
 int main(int argc, char *argv[]) {
-  Magick::InitializeMagick(*argv);
+  if (argc != 2) {
+    fprintf(stderr, "Expected GIF filename.\n");
+    return 1;
+  }
+
+  const char* gif_path = argv[1];
+  Magick::InitializeMagick(argv[0]);
 
   RGBMatrix::Options matrix_options;
   rgb_matrix::RuntimeOptions runtime_opt;
-  // If started with 'sudo': make sure to drop privileges to same user
-  // we started with, which is the most expected (and allows us to read
-  // files as that user).
+
+  // Use default options
   runtime_opt.drop_priv_user = getenv("SUDO_UID");
   runtime_opt.drop_priv_group = getenv("SUDO_GID");
-  if (!rgb_matrix::ParseOptionsFromFlags(&argc, &argv,
-                                         &matrix_options, &runtime_opt)) {
-    return usage(argv[0]);
-  }
+  runtime_opt.do_gpio_init = true;
 
-  bool do_mmap = false;
-  bool do_forever = false;
-  bool do_center = false;
-  bool do_shuffle = false;
-
-  // We remember ImageParams for each image, which will change whenever
-  // there is a flag modifying them. This map keeps track of filenames
-  // and their image params (also for unrelated elements of argv[], but doesn't
-  // matter).
-  // We map the pointer instad of the string of the argv parameter so that
-  // we can have two times the same image on the commandline list with different
-  // parameters.
-  std::map<const void *, struct ImageParams> filename_params;
-
-  // Set defaults.
-  ImageParams img_param;
-  for (int i = 0; i < argc; ++i) {
-    filename_params[argv[i]] = img_param;
-  }
-
-  const char *stream_output = NULL;
-
-  int opt;
-  while ((opt = getopt(argc, argv, "w:t:l:fr:c:P:LhCR:sO:V:D:m")) != -1) {
-    switch (opt) {
-    case 'w':
-      img_param.wait_ms = roundf(atof(optarg) * 1000.0f);
-      break;
-    case 't':
-      img_param.anim_duration_ms = roundf(atof(optarg) * 1000.0f);
-      break;
-    case 'l':
-      img_param.loops = atoi(optarg);
-      break;
-    case 'D':
-      img_param.anim_delay_ms = atoi(optarg);
-      break;
-    case 'm':
-      do_mmap = true;
-      break;
-    case 'f':
-      do_forever = true;
-      break;
-    case 'C':
-      do_center = true;
-      break;
-    case 's':
-      do_shuffle = true;
-      break;
-    case 'r':
-      fprintf(stderr, "Instead of deprecated -r, use --led-rows=%s instead.\n",
-              optarg);
-      matrix_options.rows = atoi(optarg);
-      break;
-    case 'c':
-      fprintf(stderr, "Instead of deprecated -c, use --led-chain=%s instead.\n",
-              optarg);
-      matrix_options.chain_length = atoi(optarg);
-      break;
-    case 'P':
-      matrix_options.parallel = atoi(optarg);
-      break;
-    case 'L':
-      fprintf(stderr, "-L is deprecated. Use\n\t--led-pixel-mapper=\"U-mapper\" --led-chain=4\ninstead.\n");
-      return 1;
-      break;
-    case 'R':
-      fprintf(stderr, "-R is deprecated. "
-              "Use --led-pixel-mapper=\"Rotate:%s\" instead.\n", optarg);
-      return 1;
-      break;
-    case 'O':
-      stream_output = strdup(optarg);
-      break;
-    case 'V':
-      img_param.vsync_multiple = atoi(optarg);
-      if (img_param.vsync_multiple < 1) img_param.vsync_multiple = 1;
-      break;
-    case 'h':
-    default:
-      return usage(argv[0]);
-    }
-
-    // Starting from the current file, set all the remaining files to
-    // the latest change.
-    for (int i = optind; i < argc; ++i) {
-      filename_params[argv[i]] = img_param;
-    }
-  }
-
-  const int filename_count = argc - optind;
-  if (filename_count == 0) {
-    fprintf(stderr, "Expected image filename.\n");
-    return usage(argv[0]);
-  }
-
-  // Prepare matrix
-  runtime_opt.do_gpio_init = (stream_output == NULL);
   RGBMatrix *matrix = RGBMatrix::CreateFromOptions(matrix_options, runtime_opt);
   if (matrix == NULL)
     return 1;
 
   FrameCanvas *offscreen_canvas = matrix->CreateFrameCanvas();
 
-  printf("Size: %dx%d. Hardware gpio mapping: %s\n",
-         matrix->width(), matrix->height(), matrix_options.hardware_mapping);
-
-  // These parameters are needed once we do scrolling.
+  // Set default parameters
+  ImageParams img_param;
+  const bool do_center = true;
   const bool fill_width = false;
   const bool fill_height = false;
 
-  // In case the output to stream is requested, set up the stream object.
-  rgb_matrix::StreamIO *stream_io = NULL;
-  rgb_matrix::StreamWriter *global_stream_writer = NULL;
-  if (stream_output) {
-    int fd = open(stream_output, O_CREAT|O_WRONLY, 0644);
-    if (fd < 0) {
-      perror("Couldn't open output stream");
-      return 1;
-    }
-    stream_io = new rgb_matrix::FileStreamIO(fd);
-    global_stream_writer = new rgb_matrix::StreamWriter(stream_io);
-  }
+  FileInfo *file_info = NULL;
+  std::string err_msg;
+  std::vector<Magick::Image> image_sequence;
 
-  const tmillis_t start_load = GetTimeInMillis();
-  fprintf(stderr, "Loading %d files...\n", argc - optind);
-  // Preparing all the images beforehand as the Pi might be too slow to
-  // be quickly switching between these. So preprocess.
-  std::vector<FileInfo*> file_imgs;
-  for (int imgarg = optind; imgarg < argc; ++imgarg) {
-    const char *filename = argv[imgarg];
-    FileInfo *file_info = NULL;
-
-    std::string err_msg;
-    std::vector<Magick::Image> image_sequence;
-    if (LoadImageAndScale(filename, matrix->width(), matrix->height(),
-                          fill_width, fill_height, &image_sequence, &err_msg)) {
-      file_info = new FileInfo();
-      file_info->params = filename_params[filename];
-      file_info->content_stream = new rgb_matrix::MemStreamIO();
-      file_info->is_multi_frame = image_sequence.size() > 1;
-      rgb_matrix::StreamWriter out(file_info->content_stream);
-      for (size_t i = 0; i < image_sequence.size(); ++i) {
-        const Magick::Image &img = image_sequence[i];
-        int64_t delay_time_us;
-        if (file_info->is_multi_frame) {
-          delay_time_us = img.animationDelay() * 10000; // unit in 1/100s
-        } else {
-          delay_time_us = file_info->params.wait_ms * 1000;  // single image.
-        }
-        if (delay_time_us <= 0) delay_time_us = 100 * 1000;  // 1/10sec
-        StoreInStream(img, delay_time_us, do_center, offscreen_canvas,
-                      global_stream_writer ? global_stream_writer : &out);
+  if (LoadImageAndScale(gif_path, matrix->width(), matrix->height(),
+                       fill_width, fill_height, &image_sequence, &err_msg)) {
+    file_info = new FileInfo();
+    file_info->params = img_param;
+    file_info->content_stream = new rgb_matrix::MemStreamIO();
+    file_info->is_multi_frame = image_sequence.size() > 1;
+    
+    rgb_matrix::StreamWriter out(file_info->content_stream);
+    for (size_t i = 0; i < image_sequence.size(); ++i) {
+      const Magick::Image &img = image_sequence[i];
+      int64_t delay_time_us;
+      if (file_info->is_multi_frame) {
+        delay_time_us = img.animationDelay() * 10000;
+      } else {
+        delay_time_us = file_info->params.wait_ms * 1000;
       }
-    } else {
-      // Ok, not an image. Let's see if it is one of our streams.
-      int fd = open(filename, O_RDONLY);
-      if (fd >= 0) {
-        file_info = new FileInfo();
-        file_info->params = filename_params[filename];
-        if (do_mmap) {
-          rgb_matrix::MemMapViewInput *stream_input =
-            new rgb_matrix::MemMapViewInput(fd);
-          if (stream_input->IsInitialized()) {
-            file_info->content_stream = stream_input;
-          } else {
-            delete stream_input;
-          }
-        }
-        if (!file_info->content_stream) {
-          file_info->content_stream = new rgb_matrix::FileStreamIO(fd);
-        }
-        StreamReader reader(file_info->content_stream);
-        if (reader.GetNext(offscreen_canvas, NULL)) {  // header+size ok
-          file_info->is_multi_frame = reader.GetNext(offscreen_canvas, NULL);
-          reader.Rewind();
-          if (global_stream_writer) {
-            CopyStream(&reader, global_stream_writer, offscreen_canvas);
-          }
-        } else {
-          err_msg += "; Can't read as image or compatible stream";
-          delete file_info->content_stream;
-          delete file_info;
-          file_info = NULL;
-        }
-      }
-      else {
-        perror("Opening file");
-      }
+      if (delay_time_us <= 0) delay_time_us = 100 * 1000;
+      StoreInStream(img, delay_time_us, do_center, offscreen_canvas, &out);
     }
 
-    if (file_info) {
-      file_imgs.push_back(file_info);
-    } else {
-      fprintf(stderr, "%s skipped: Unable to open (%s)\n",
-              filename, err_msg.c_str());
-    }
-  }
+    signal(SIGTERM, InterruptHandler);
+    signal(SIGINT, InterruptHandler);
 
-  if (stream_output) {
-    delete global_stream_writer;
-    delete stream_io;
-    if (file_imgs.size()) {
-      fprintf(stderr, "Done: Output to stream %s; "
-              "this can now be opened with led-image-viewer with the exact same panel configuration settings such as rows, chain, parallel and hardware-mapping\n", stream_output);
+    // Display animation until interrupted
+    while (!interrupt_received) {
+      DisplayAnimation(file_info, matrix, offscreen_canvas);
     }
-    if (do_shuffle)
-      fprintf(stderr, "Note: -s (shuffle) does not have an effect when generating streams.\n");
-    if (do_forever)
-      fprintf(stderr, "Note: -f (forever) does not have an effect when generating streams.\n");
-    // Done, no actual output to matrix.
-    return 0;
-  }
-
-  // Some parameter sanity adjustments.
-  if (file_imgs.empty()) {
-    // e.g. if all files could not be interpreted as image.
-    fprintf(stderr, "No image could be loaded.\n");
-    return 1;
-  } else if (file_imgs.size() == 1) {
-    // Single image: show forever.
-    file_imgs[0]->params.wait_ms = distant_future;
   } else {
-    for (size_t i = 0; i < file_imgs.size(); ++i) {
-      ImageParams &params = file_imgs[i]->params;
-      // Forever animation ? Set to loop only once, otherwise that animation
-      // would just run forever, stopping all the images after it.
-      if (params.loops < 0 && params.anim_duration_ms == distant_future) {
-        params.loops = 1;
-      }
-    }
+    fprintf(stderr, "Failed to load image: %s\n", err_msg.c_str());
+    return 1;
   }
 
-  fprintf(stderr, "Loading took %.3fs; now: Display.\n",
-          (GetTimeInMillis() - start_load) / 1000.0);
-
-  signal(SIGTERM, InterruptHandler);
-  signal(SIGINT, InterruptHandler);
-
-  do {
-    if (do_shuffle) {
-      std::random_shuffle(file_imgs.begin(), file_imgs.end());
-    }
-    for (size_t i = 0; i < file_imgs.size() && !interrupt_received; ++i) {
-      DisplayAnimation(file_imgs[i], matrix, offscreen_canvas);
-    }
-  } while (do_forever && !interrupt_received);
-
-  if (interrupt_received) {
-    fprintf(stderr, "Caught signal. Exiting.\n");
-  }
-
-  // Animation finished. Shut down the RGB matrix.
+  // Cleanup
   matrix->Clear();
   delete matrix;
+  delete file_info->content_stream;
+  delete file_info;
 
-  // Leaking the FileInfos, but don't care at program end.
   return 0;
 }
