@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-volatile bool interrupt_received = false;
 static void InterruptHandler(int signo) {
     interrupt_received = true;
 }
