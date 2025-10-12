@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <iostream>
 #include <cstring>
+#include <unistd.h>
+#include <cstdlib>
 
 DisplayManager::DisplayManager(rgb_matrix::RGBMatrix* matrix) 
     : matrix(matrix), canvas(nullptr), current_brightness(100), last_update_time(0) {
@@ -20,10 +22,41 @@ bool DisplayManager::init() {
         return false;
     }
     
-    // Initialize serial protocol (default to /dev/ttyUSB0)
-    if (!serial_protocol.init("/dev/ttyUSB0", 1000000)) {
-        std::cerr << "Warning: Failed to initialize serial protocol" << std::endl;
-        // Continue without serial - not critical for basic functionality
+    // Check if serial device exists
+    if (access("/dev/ttyUSB0", F_OK) != 0) {
+        std::cerr << "Serial device /dev/ttyUSB0 not found. Available devices:" << std::endl;
+        system("ls -la /dev/tty* 2>/dev/null | grep -E '(USB|ACM)'");
+        std::cerr << "Trying alternative devices..." << std::endl;
+        
+        // Try common alternatives
+        const char* devices[] = {"/dev/ttyUSB1", "/dev/ttyACM0", "/dev/ttyACM1", "/dev/serial0", "/dev/ttyS0"};
+        bool found = false;
+        
+        for (int i = 0; i < 5; i++) {
+            if (access(devices[i], F_OK) == 0) {
+                std::cout << "Found device: " << devices[i] << std::endl;
+                if (serial_protocol.init(devices[i], 1000000)) {
+                    std::cout << "Successfully initialized serial protocol on " << devices[i] << std::endl;
+                    serial_protocol.sendTestData();
+                    found = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!found) {
+            std::cerr << "Warning: No suitable serial device found" << std::endl;
+        }
+    } else {
+        // Initialize serial protocol (default to /dev/ttyUSB0)
+        if (!serial_protocol.init("/dev/ttyUSB0", 1000000)) {
+            std::cerr << "Warning: Failed to initialize serial protocol" << std::endl;
+            // Continue without serial - not critical for basic functionality
+        } else {
+            // Send test data to verify communication
+            std::cout << "Sending test data to verify UART communication..." << std::endl;
+            serial_protocol.sendTestData();
+        }
     }
     
     // Add diagnostic display elements
@@ -69,8 +102,19 @@ void DisplayManager::processSerialCommands() {
 void DisplayManager::updateDisplay() {
     uint64_t current_time = getCurrentTimeUs();
     
-    // Clear canvas
-    canvas->Clear();
+    // Only clear canvas if we have elements to draw
+    bool has_active_elements = false;
+    for (const auto& element : elements) {
+        if (element.active) {
+            has_active_elements = true;
+            break;
+        }
+    }
+    
+    if (has_active_elements) {
+        // Clear canvas only when we have elements to draw
+        canvas->Clear();
+    }
     
     // Update and draw all active elements
     for (auto& element : elements) {
@@ -374,22 +418,40 @@ void DisplayManager::processStatusCommand(StatusCommand* cmd) {
 }
 
 void DisplayManager::addDiagnosticElements() {
-    // Add test pattern - colored squares in corners
-    addTextElement("LED CTRL", 5, 5, 2, 255, 255, 0);      // Yellow title
-    addTextElement("192x192", 5, 25, 1, 0, 255, 0);        // Green size info
-    addTextElement("RS232 OK", 5, 35, 1, 0, 255, 255);     // Cyan serial status
+    // Draw simple test pattern directly on canvas
+    std::cout << "Drawing diagnostic pattern directly on canvas..." << std::endl;
     
-    // Add corner markers
-    addTextElement("TL", 0, 0, 1, 255, 0, 0);              // Red top-left
-    addTextElement("TR", 180, 0, 1, 0, 255, 0);            // Green top-right
-    addTextElement("BL", 0, 180, 1, 0, 0, 255);            // Blue bottom-left
-    addTextElement("BR", 180, 180, 1, 255, 255, 0);        // Yellow bottom-right
+    // Clear canvas first
+    canvas->Clear();
     
-    // Add center cross
-    addTextElement("+", 90, 90, 3, 255, 255, 255);         // White center cross
+    // Draw corner squares
+    for (int y = 0; y < 20; y++) {
+        for (int x = 0; x < 20; x++) {
+            canvas->SetPixel(x, y, 255, 0, 0);        // Red top-left
+            canvas->SetPixel(SCREEN_WIDTH-1-x, y, 0, 255, 0);      // Green top-right
+            canvas->SetPixel(x, SCREEN_HEIGHT-1-y, 0, 0, 255);     // Blue bottom-left
+            canvas->SetPixel(SCREEN_WIDTH-1-x, SCREEN_HEIGHT-1-y, 255, 255, 0); // Yellow bottom-right
+        }
+    }
     
-    // Add scrolling test text
-    addTextElement("Serial Protocol Test - LED Display Controller Ready", 10, 150, 1, 255, 0, 255);
+    // Draw center cross
+    for (int i = 0; i < 20; i++) {
+        canvas->SetPixel(SCREEN_WIDTH/2 + i, SCREEN_HEIGHT/2, 255, 255, 255);  // Horizontal
+        canvas->SetPixel(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + i, 255, 255, 255);  // Vertical
+    }
     
-    std::cout << "Diagnostic elements added to display" << std::endl;
+    // Draw border
+    for (int i = 0; i < SCREEN_WIDTH; i++) {
+        canvas->SetPixel(i, 0, 255, 255, 255);           // Top border
+        canvas->SetPixel(i, SCREEN_HEIGHT-1, 255, 255, 255); // Bottom border
+    }
+    for (int i = 0; i < SCREEN_HEIGHT; i++) {
+        canvas->SetPixel(0, i, 255, 255, 255);           // Left border
+        canvas->SetPixel(SCREEN_WIDTH-1, i, 255, 255, 255); // Right border
+    }
+    
+    // Force immediate display
+    canvas = matrix->SwapOnVSync(canvas, 1);
+    
+    std::cout << "Diagnostic pattern drawn - you should see colored squares in corners and white border" << std::endl;
 }
