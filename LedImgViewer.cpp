@@ -90,6 +90,7 @@ void StoreInStream(const Magick::Image &img, int delay_time_us,
   output->Stream(*scratch, delay_time_us);
 }
 
+
 bool LoadImageAndScale(const char *filename,
                               int target_width, int target_height,
                               bool fill_width, bool fill_height,
@@ -174,5 +175,6 @@ void DisplayAnimation(const FileInfo *file,
     reader.Rewind();
   }
 }
+
 
 
