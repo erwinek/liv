@@ -67,6 +67,9 @@ public:
     
     // Get status information
     std::string getStatus();
+    
+    // Add diagnostic elements for testing
+    void addDiagnosticElements();
 
 private:
     rgb_matrix::RGBMatrix* matrix;

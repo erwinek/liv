@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <climits>
 #include <unistd.h>
+#include <string.h>
 
 static void InterruptHandler(int signo) {
     interrupt_received = true;
@@ -42,6 +43,20 @@ int main(int argc, char *argv[]) {
         delete matrix;
         return 1;
     }
+    
+    // Check for --no-diagnostics flag
+    bool show_diagnostics = true;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--no-diagnostics") == 0) {
+            show_diagnostics = false;
+            break;
+        }
+    }
+    
+    if (!show_diagnostics) {
+        display_manager.clearScreen();
+        printf("Diagnostic display disabled\n");
+    }
 
     // Load initial GIFs if provided (backward compatibility)
     if (argc == 5) {
@@ -65,6 +80,7 @@ int main(int argc, char *argv[]) {
     printf("Screen size: %dx%d\n", matrix->width(), matrix->height());
     printf("Serial protocol: 1000000 bps on /dev/ttyUSB0\n");
     printf("Commands: LOAD_GIF, DISPLAY_TEXT, CLEAR_SCREEN, SET_BRIGHTNESS, GET_STATUS\n");
+    printf("Usage: %s [gif1 gif2 gif3 gif4] [--no-diagnostics]\n", argv[0]);
     printf("Press Ctrl+C to exit\n");
 
     // Main loop

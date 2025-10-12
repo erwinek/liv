@@ -26,6 +26,9 @@ bool DisplayManager::init() {
         // Continue without serial - not critical for basic functionality
     }
     
+    // Add diagnostic display elements
+    addDiagnosticElements();
+    
     last_update_time = getCurrentTimeUs();
     return true;
 }
@@ -368,4 +371,25 @@ void DisplayManager::processStatusCommand(StatusCommand* cmd) {
     std::string status = getStatus();
     serial_protocol.sendResponse(cmd->screen_id, RESP_OK, 
                                (const uint8_t*)status.c_str(), status.length());
+}
+
+void DisplayManager::addDiagnosticElements() {
+    // Add test pattern - colored squares in corners
+    addTextElement("LED CTRL", 5, 5, 2, 255, 255, 0);      // Yellow title
+    addTextElement("192x192", 5, 25, 1, 0, 255, 0);        // Green size info
+    addTextElement("RS232 OK", 5, 35, 1, 0, 255, 255);     // Cyan serial status
+    
+    // Add corner markers
+    addTextElement("TL", 0, 0, 1, 255, 0, 0);              // Red top-left
+    addTextElement("TR", 180, 0, 1, 0, 255, 0);            // Green top-right
+    addTextElement("BL", 0, 180, 1, 0, 0, 255);            // Blue bottom-left
+    addTextElement("BR", 180, 180, 1, 255, 255, 0);        // Yellow bottom-right
+    
+    // Add center cross
+    addTextElement("+", 90, 90, 3, 255, 255, 255);         // White center cross
+    
+    // Add scrolling test text
+    addTextElement("Serial Protocol Test - LED Display Controller Ready", 10, 150, 1, 255, 0, 255);
+    
+    std::cout << "Diagnostic elements added to display" << std::endl;
 }
