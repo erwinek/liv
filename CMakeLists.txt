@@ -22,6 +22,8 @@ include_directories(
 add_executable(led-image-viewer
     main.cpp
     LedImgViewer.cpp
+    SerialProtocol.cpp
+    DisplayManager.cpp
 )
 
 # Link libraries
