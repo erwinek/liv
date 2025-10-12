@@ -4,15 +4,16 @@ project(led_image_viewer)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find required packages
-find_package(ImageMagick COMPONENTS Magick++ REQUIRED)
+# Find required packages - using pkg-config for GraphicsMagick
+include(FindPkgConfig)
+pkg_check_modules(GRAPHICSMAGICK REQUIRED GraphicsMagick++>=1.3.35)
 
 # Set the path to rpi-rgb-led-matrix library
 set(RGB_MATRIX_DIR "${CMAKE_SOURCE_DIR}/../rpi-rgb-led-matrix")
 
 # Include directories
 include_directories(
-    ${ImageMagick_INCLUDE_DIRS}
+    ${GRAPHICSMAGICK_INCLUDE_DIRS}
     ${RGB_MATRIX_DIR}/include
 )
 
@@ -25,7 +26,7 @@ add_executable(led-image-viewer
 # Link libraries
 target_link_libraries(led-image-viewer
     ${RGB_MATRIX_DIR}/lib/librgbmatrix.a
-    ${ImageMagick_LIBRARIES}
+    ${GRAPHICSMAGICK_LIBRARIES}
     pthread
     rt
     m
