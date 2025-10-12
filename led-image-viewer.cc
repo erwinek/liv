@@ -51,27 +51,9 @@ using rgb_matrix::StreamReader;
 typedef int64_t tmillis_t;
 static const tmillis_t distant_future = (1LL<<40); // that is a while.
 
-struct ImageParams {
-  ImageParams() : anim_duration_ms(distant_future), wait_ms(1500),
-                  anim_delay_ms(-1), loops(-1), vsync_multiple(1) {}
-  tmillis_t anim_duration_ms;  // If this is an animation, duration to show.
-  tmillis_t wait_ms;           // Regular image: duration to show.
-  tmillis_t anim_delay_ms;     // Animation delay override.
-  int loops;
-  int vsync_multiple;
-};
-
-struct FileInfo {
-  ImageParams params;      // Each file might have specific timing settings
-  bool is_multi_frame = false;
-  rgb_matrix::StreamIO *content_stream = nullptr;
-};
-
 volatile bool interrupt_received = false;
 
-static void InterruptHandler(int signo) {
-  interrupt_received = true;
-}
+
 
 static tmillis_t GetTimeInMillis() {
   struct timeval tp;
@@ -87,7 +69,7 @@ static void SleepMillis(tmillis_t milli_seconds) {
   nanosleep(&ts, NULL);
 }
 
-static void StoreInStream(const Magick::Image &img, int delay_time_us,
+void StoreInStream(const Magick::Image &img, int delay_time_us,
                           bool do_center,
                           rgb_matrix::FrameCanvas *scratch,
                           rgb_matrix::StreamWriter *output) {
@@ -108,7 +90,7 @@ static void StoreInStream(const Magick::Image &img, int delay_time_us,
   output->Stream(*scratch, delay_time_us);
 }
 
-static bool LoadImageAndScale(const char *filename,
+bool LoadImageAndScale(const char *filename,
                               int target_width, int target_height,
                               bool fill_width, bool fill_height,
                               std::vector<Magick::Image> *result,
@@ -194,83 +176,3 @@ void DisplayAnimation(const FileInfo *file,
 }
 
 
-int main(int argc, char *argv[]) {
-  if (argc != 2) {
-    fprintf(stderr, "Expected GIF filename.\n");
-    return 1;
-  }
-
-  const char* gif_path = argv[1];
-  Magick::InitializeMagick(argv[0]);
-
-  RGBMatrix::Options matrix_options;
-  rgb_matrix::RuntimeOptions runtime_opt;
-
-  matrix_options.rows = 64;
-  matrix_options.cols = 64;
-  matrix_options.chain_length = 3; // 64*3 = 192 px
-  matrix_options.parallel = 3;     // 64*3 = 192 px
-  matrix_options.hardware_mapping = "regular";
-  runtime_opt.gpio_slowdown = 3;
-
-  // Use default options
-  runtime_opt.drop_priv_user = getenv("SUDO_UID");
-  runtime_opt.drop_priv_group = getenv("SUDO_GID");
-  runtime_opt.do_gpio_init = true;
-
-  RGBMatrix *matrix = RGBMatrix::CreateFromOptions(matrix_options, runtime_opt);
-  if (matrix == NULL)
-    return 1;
-
-  FrameCanvas *offscreen_canvas = matrix->CreateFrameCanvas();
-
-  // Set default parameters
-  ImageParams img_param;
-  const bool do_center = true;
-  const bool fill_width = false;
-  const bool fill_height = false;
-
-  FileInfo *file_info = NULL;
-  std::string err_msg;
-  std::vector<Magick::Image> image_sequence;
-
-  if (LoadImageAndScale(gif_path, matrix->width(), matrix->height(),
-                       fill_width, fill_height, &image_sequence, &err_msg)) {
-    file_info = new FileInfo();
-    file_info->params = img_param;
-    file_info->content_stream = new rgb_matrix::MemStreamIO();
-    file_info->is_multi_frame = image_sequence.size() > 1;
-    
-    rgb_matrix::StreamWriter out(file_info->content_stream);
-    for (size_t i = 0; i < image_sequence.size(); ++i) {
-      const Magick::Image &img = image_sequence[i];
-      int64_t delay_time_us;
-      if (file_info->is_multi_frame) {
-        delay_time_us = img.animationDelay() * 10000;
-      } else {
-        delay_time_us = file_info->params.wait_ms * 1000;
-      }
-      if (delay_time_us <= 0) delay_time_us = 100 * 1000;
-      StoreInStream(img, delay_time_us, do_center, offscreen_canvas, &out);
-    }
-
-    signal(SIGTERM, InterruptHandler);
-    signal(SIGINT, InterruptHandler);
-
-    // Display animation until interrupted
-    while (!interrupt_received) {
-      DisplayAnimation(file_info, matrix, offscreen_canvas);
-    }
-  } else {
-    fprintf(stderr, "Failed to load image: %s\n", err_msg.c_str());
-    return 1;
-  }
-
-  // Cleanup
-  matrix->Clear();
-  delete matrix;
-  delete file_info->content_stream;
-  delete file_info;
-
-  return 0;
-}
