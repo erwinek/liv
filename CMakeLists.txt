@@ -21,7 +21,7 @@ include_directories(
 # Add source files
 add_executable(led-image-viewer
     main.cpp
-    led-image-viewer-impl.cpp
+    led-image-viewer.cc
 )
 
 # Link libraries
