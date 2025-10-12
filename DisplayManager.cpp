@@ -8,8 +8,126 @@
 #include <cstdlib>
 #include <climits>
 
+// Initialize color palette
+Color8 ColorPalette::palette[PALETTE_SIZE];
+bool ColorPalette::initialized = false;
+uint8_t ColorPalette::rgb_lookup[256][256][256];
+bool ColorPalette::lookup_initialized = false;
+
+void ColorPalette::initialize() {
+    if (initialized) return;
+    
+    // Create a 256-color palette with good coverage
+    int index = 0;
+    
+    // Basic colors (16 colors)
+    palette[index++] = Color8(0, 0, 0);       // Black
+    palette[index++] = Color8(255, 255, 255); // White
+    palette[index++] = Color8(255, 0, 0);     // Red
+    palette[index++] = Color8(0, 255, 0);     // Green
+    palette[index++] = Color8(0, 0, 255);     // Blue
+    palette[index++] = Color8(255, 255, 0);   // Yellow
+    palette[index++] = Color8(255, 0, 255);   // Magenta
+    palette[index++] = Color8(0, 255, 255);   // Cyan
+    palette[index++] = Color8(128, 128, 128); // Gray
+    palette[index++] = Color8(192, 192, 192); // Light Gray
+    palette[index++] = Color8(64, 64, 64);    // Dark Gray
+    palette[index++] = Color8(255, 128, 0);   // Orange
+    palette[index++] = Color8(128, 0, 128);   // Purple
+    palette[index++] = Color8(0, 128, 0);     // Dark Green
+    palette[index++] = Color8(0, 0, 128);     // Dark Blue
+    palette[index++] = Color8(128, 128, 0);   // Olive
+    
+    // Generate RGB cube (6x6x6 = 216 colors)
+    for (int r = 0; r < 6; r++) {
+        for (int g = 0; g < 6; g++) {
+            for (int b = 0; b < 6; b++) {
+                if (index < PALETTE_SIZE) {
+                    palette[index++] = Color8(
+                        (r * 255) / 5,
+                        (g * 255) / 5,
+                        (b * 255) / 5
+                    );
+                }
+            }
+        }
+    }
+    
+    // Fill remaining slots with grayscale
+    while (index < PALETTE_SIZE) {
+        int gray = (index * 255) / (PALETTE_SIZE - 1);
+        palette[index++] = Color8(gray, gray, gray);
+    }
+    
+    initialized = true;
+    initializeLookupTable();
+}
+
+void ColorPalette::initializeLookupTable() {
+    if (lookup_initialized) return;
+    
+    std::cout << "Initializing RGB lookup table for fast color conversion..." << std::endl;
+    
+    // Pre-calculate lookup table for all possible RGB combinations
+    for (int r = 0; r < 256; r += 4) {  // Sample every 4th value for memory efficiency
+        for (int g = 0; g < 256; g += 4) {
+            for (int b = 0; b < 256; b += 4) {
+                uint8_t color_index = rgbTo8bit(r, g, b);
+                
+                // Fill 4x4x4 cube around this point
+                for (int dr = 0; dr < 4 && r + dr < 256; dr++) {
+                    for (int dg = 0; dg < 4 && g + dg < 256; dg++) {
+                        for (int db = 0; db < 4 && b + db < 256; db++) {
+                            rgb_lookup[r + dr][g + dg][b + db] = color_index;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    lookup_initialized = true;
+    std::cout << "RGB lookup table initialized" << std::endl;
+}
+
+uint8_t ColorPalette::rgbTo8bit(uint8_t r, uint8_t g, uint8_t b) {
+    if (!initialized) initialize();
+    
+    // Find closest color in palette
+    int best_index = 0;
+    int best_distance = INT_MAX;
+    
+    for (int i = 0; i < PALETTE_SIZE; i++) {
+        int dr = r - palette[i].r;
+        int dg = g - palette[i].g;
+        int db = b - palette[i].b;
+        int distance = dr*dr + dg*dg + db*db;
+        
+        if (distance < best_distance) {
+            best_distance = distance;
+            best_index = i;
+        }
+    }
+    
+    return best_index;
+}
+
+uint8_t ColorPalette::rgbTo8bitFast(uint8_t r, uint8_t g, uint8_t b) {
+    if (!lookup_initialized) initializeLookupTable();
+    return rgb_lookup[r][g][b];
+}
+
+Color8 ColorPalette::getColor(uint8_t index) {
+    if (!initialized) initialize();
+    if (index >= PALETTE_SIZE) index = 0;
+    return palette[index];
+}
+
 DisplayManager::DisplayManager(rgb_matrix::RGBMatrix* matrix) 
-    : matrix(matrix), canvas(nullptr), current_brightness(100), last_update_time(0) {
+    : matrix(matrix), canvas(nullptr), current_brightness(100), last_update_time(0), diagnostic_drawn(false) {
+    // Initialize color palette
+    ColorPalette::initialize();
+    
     // Load BDF font
     if (!bdf_font.loadFromFile("fonts/5x7.bdf")) {
         std::cerr << "Failed to load BDF font, using fallback" << std::endl;
@@ -119,9 +237,13 @@ void DisplayManager::updateDisplay() {
     if (has_active_elements) {
         // Clear canvas only when we have elements to draw
         canvas->Clear();
+        diagnostic_drawn = false; // Reset flag when we have elements
     } else {
-        // If no elements, redraw diagnostic pattern to keep it visible
-        addDiagnosticElements();
+        // If no elements, draw diagnostic pattern only once
+        if (!diagnostic_drawn) {
+            addDiagnosticElements();
+            diagnostic_drawn = true;
+        }
         return; // Don't process elements since there are none
     }
     
@@ -149,6 +271,7 @@ void DisplayManager::updateDisplay() {
 void DisplayManager::clearScreen() {
     canvas->Clear();
     elements.clear();
+    diagnostic_drawn = false; // Reset flag when clearing screen
 }
 
 void DisplayManager::setBrightness(uint8_t brightness) {
@@ -199,8 +322,8 @@ bool DisplayManager::addGifElement(const std::string& filename, uint16_t x, uint
 }
 
 bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_t y,
-                                   uint8_t font_size, uint8_t r, uint8_t g, uint8_t b) {
-    std::cout << "addTextElement called: '" << text << "' at (" << x << "," << y << ") font " << (int)font_size << std::endl;
+                                   uint8_t font_size, uint8_t color_index) {
+    // Debug print removed for performance
     
     // Check bounds
     if (!isWithinBounds(x, y, font_size * text.length(), font_size * 8)) {
@@ -217,15 +340,12 @@ bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_
     element.height = font_size * 8;
     element.text = text;
     element.font_size = font_size;
-    element.color_r = r;
-    element.color_g = g;
-    element.color_b = b;
+    element.color_index = color_index;
     element.scroll_offset = 0;
     element.last_scroll_time = getCurrentTimeUs();
     element.active = true;
     
     elements.push_back(element);
-    std::cout << "Text element added successfully. Total elements: " << elements.size() << std::endl;
     return true;
 }
 
@@ -264,10 +384,14 @@ void DisplayManager::drawGifElement(const DisplayElement& element) {
         for (size_t x = 0; x < img.columns() && x < draw_width; ++x) {
             const Magick::Color& c = img.pixelColor(x, y);
             if (c.alphaQuantum() < 255) {
-                canvas->SetPixel(draw_x + x, draw_y + y,
-                               ScaleQuantumToChar(c.redQuantum()),
-                               ScaleQuantumToChar(c.greenQuantum()),
-                               ScaleQuantumToChar(c.blueQuantum()));
+                // Convert 24-bit RGB to 8-bit color index using fast lookup
+                uint8_t r = ScaleQuantumToChar(c.redQuantum());
+                uint8_t g = ScaleQuantumToChar(c.greenQuantum());
+                uint8_t b = ScaleQuantumToChar(c.blueQuantum());
+                uint8_t color_index = ColorPalette::rgbTo8bitFast(r, g, b);
+                Color8 color = ColorPalette::getColor(color_index);
+                
+                canvas->SetPixel(draw_x + x, draw_y + y, color.r, color.g, color.b);
             }
         }
     }
@@ -291,8 +415,7 @@ void DisplayManager::drawTextElement(const DisplayElement& element) {
         }
     }
     
-    drawString(display_text, x, y, element.font_size, 
-              element.color_r, element.color_g, element.color_b);
+    drawString(display_text, x, y, element.font_size, element.color_index);
 }
 
 void DisplayManager::updateGifElement(DisplayElement& element) {
@@ -339,7 +462,7 @@ void DisplayManager::clipToBounds(uint16_t& x, uint16_t& y, uint16_t& width, uin
 }
 
 void DisplayManager::drawChar(char c, uint16_t x, uint16_t y, uint8_t font_size, 
-                             uint8_t r, uint8_t g, uint8_t b) {
+                             uint8_t color_index) {
     if (!canvas) return;
     
     // Get character from BDF font
@@ -347,21 +470,17 @@ void DisplayManager::drawChar(char c, uint16_t x, uint16_t y, uint8_t font_size,
     if (!bdf_char) {
         std::cout << "drawChar: No BDF char found for '" << c << "' (ASCII " << (int)c << ")" << std::endl;
         // Fallback: draw a simple rectangle for unknown characters
+        Color8 color = ColorPalette::getColor(color_index);
         for (int sy = 0; sy < font_size * 7; sy++) {
             for (int sx = 0; sx < font_size * 5; sx++) {
-                canvas->SetPixel(x + sx, y + sy, r, g, b);
+                canvas->SetPixel(x + sx, y + sy, color.r, color.g, color.b);
             }
         }
         return;
     }
     
-    std::cout << "drawChar: Drawing '" << c << "' at (" << x << "," << y << ") size " << (int)font_size 
-              << " BDF size " << bdf_char->width << "x" << bdf_char->height << std::endl;
-    
-    // Calculate bytes per row
+    // Debug prints removed for performance
     int bytes_per_row = (bdf_char->width + 7) / 8;
-    
-    std::cout << "drawChar: Bitmap size: " << bdf_char->bitmap.size() << " bytes, bytes_per_row: " << bytes_per_row << std::endl;
     
     int pixels_drawn = 0;
     
@@ -384,7 +503,8 @@ void DisplayManager::drawChar(char c, uint16_t x, uint16_t y, uint8_t font_size,
                             // Check bounds
                             if (pixel_x >= 0 && pixel_x < SCREEN_WIDTH && 
                                 pixel_y >= 0 && pixel_y < SCREEN_HEIGHT) {
-                                canvas->SetPixel(pixel_x, pixel_y, r, g, b);
+                                Color8 color = ColorPalette::getColor(color_index);
+                                canvas->SetPixel(pixel_x, pixel_y, color.r, color.g, color.b);
                                 pixels_drawn++;
                             }
                         }
@@ -394,29 +514,26 @@ void DisplayManager::drawChar(char c, uint16_t x, uint16_t y, uint8_t font_size,
         }
     }
     
-    std::cout << "drawChar: Drew " << pixels_drawn << " pixels for '" << c << "'" << std::endl;
+    // Debug print removed for performance
 }
 
 void DisplayManager::drawString(const std::string& str, uint16_t x, uint16_t y, 
-                               uint8_t font_size, uint8_t r, uint8_t g, uint8_t b) {
+                               uint8_t font_size, uint8_t color_index) {
     uint16_t current_x = x;
     
-    std::cout << "drawString: Drawing '" << str << "' at (" << x << "," << y << ") size " << (int)font_size << std::endl;
+    // Debug print removed for performance
     
     for (char c : str) {
         if (current_x >= SCREEN_WIDTH) break;
         
-        std::cout << "drawString: About to draw char '" << c << "' at (" << current_x << "," << y << ")" << std::endl;
-        drawChar(c, current_x, y, font_size, r, g, b);
+        drawChar(c, current_x, y, font_size, color_index);
         
         // Get character width from BDF font
         const BdfChar* bdf_char = bdf_font.getChar(static_cast<uint32_t>(c));
         if (bdf_char) {
             current_x += (bdf_char->width + 1) * font_size; // character width + 1 pixel spacing
-            std::cout << "drawString: Char '" << c << "' width " << bdf_char->width << ", next x=" << current_x << std::endl;
         } else {
             current_x += font_size * 6; // fallback spacing
-            std::cout << "drawString: Char '" << c << "' not found in BDF, using fallback spacing, next x=" << current_x << std::endl;
         }
     }
 }
@@ -450,19 +567,18 @@ void DisplayManager::processTextCommand(TextCommand* cmd) {
     if (!cmd) return;
     
     std::string text(cmd->text, cmd->text_length);
-    std::cout << "Processing TEXT command: '" << text 
-              << "' at (" << cmd->x_pos << "," << cmd->y_pos 
-              << ") font " << (int)cmd->font_size 
-              << " color (" << (int)cmd->color_r << "," << (int)cmd->color_g << "," << (int)cmd->color_b << ")" << std::endl;
+    // Debug print removed for performance
     
-    bool success = addTextElement(text, cmd->x_pos, cmd->y_pos, cmd->font_size, 
-                                 cmd->color_r, cmd->color_g, cmd->color_b);
+    // Convert RGB to 8-bit color index using fast lookup
+    uint8_t color_index = ColorPalette::rgbTo8bitFast(cmd->color_r, cmd->color_g, cmd->color_b);
+    
+    bool success = addTextElement(text, cmd->x_pos, cmd->y_pos, cmd->font_size, color_index);
     
     if (success) {
-        std::cout << "Text added successfully" << std::endl;
+        // Debug print removed for performance
         serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
     } else {
-        std::cout << "Failed to add text" << std::endl;
+        // Debug print removed for performance
         serial_protocol.sendResponse(cmd->screen_id, RESP_INVALID_PARAMS);
     }
 }
@@ -496,44 +612,51 @@ void DisplayManager::addDiagnosticElements() {
     // Clear canvas first
     canvas->Clear();
     
-    // Draw corner squares
+    // Draw corner squares using 8-bit colors
+    Color8 red = ColorPalette::getColor(2);      // Red
+    Color8 green = ColorPalette::getColor(3);    // Green  
+    Color8 blue = ColorPalette::getColor(4);     // Blue
+    Color8 yellow = ColorPalette::getColor(5);   // Yellow
+    
     for (int y = 0; y < 20; y++) {
         for (int x = 0; x < 20; x++) {
-            canvas->SetPixel(x, y, 255, 0, 0);        // Red top-left
-            canvas->SetPixel(SCREEN_WIDTH-1-x, y, 0, 255, 0);      // Green top-right
-            canvas->SetPixel(x, SCREEN_HEIGHT-1-y, 0, 0, 255);     // Blue bottom-left
-            canvas->SetPixel(SCREEN_WIDTH-1-x, SCREEN_HEIGHT-1-y, 255, 255, 0); // Yellow bottom-right
+            canvas->SetPixel(x, y, red.r, red.g, red.b);        // Red top-left
+            canvas->SetPixel(SCREEN_WIDTH-1-x, y, green.r, green.g, green.b);      // Green top-right
+            canvas->SetPixel(x, SCREEN_HEIGHT-1-y, blue.r, blue.g, blue.b);     // Blue bottom-left
+            canvas->SetPixel(SCREEN_WIDTH-1-x, SCREEN_HEIGHT-1-y, yellow.r, yellow.g, yellow.b); // Yellow bottom-right
         }
     }
     
-    // Draw center cross
+    // Draw center cross using white color
+    Color8 white = ColorPalette::getColor(1);    // White
     for (int i = 0; i < 20; i++) {
-        canvas->SetPixel(SCREEN_WIDTH/2 + i, SCREEN_HEIGHT/2, 255, 255, 255);  // Horizontal
-        canvas->SetPixel(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + i, 255, 255, 255);  // Vertical
+        canvas->SetPixel(SCREEN_WIDTH/2 + i, SCREEN_HEIGHT/2, white.r, white.g, white.b);  // Horizontal
+        canvas->SetPixel(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + i, white.r, white.g, white.b);  // Vertical
     }
     
-    // Draw border
+    // Draw border using white color
     for (int i = 0; i < SCREEN_WIDTH; i++) {
-        canvas->SetPixel(i, 0, 255, 255, 255);           // Top border
-        canvas->SetPixel(i, SCREEN_HEIGHT-1, 255, 255, 255); // Bottom border
+        canvas->SetPixel(i, 0, white.r, white.g, white.b);           // Top border
+        canvas->SetPixel(i, SCREEN_HEIGHT-1, white.r, white.g, white.b); // Bottom border
     }
     for (int i = 0; i < SCREEN_HEIGHT; i++) {
-        canvas->SetPixel(0, i, 255, 255, 255);           // Left border
-        canvas->SetPixel(SCREEN_WIDTH-1, i, 255, 255, 255); // Right border
+        canvas->SetPixel(0, i, white.r, white.g, white.b);           // Left border
+        canvas->SetPixel(SCREEN_WIDTH-1, i, white.r, white.g, white.b); // Right border
     }
     
     // Draw test text "LED" using the new bitmap font
     std::cout << "Drawing test text 'LED' on diagnostic screen..." << std::endl;
-    drawString("LED", 50, 50, 4, 255, 255, 255);  // White text at (50,50) size 4
+    drawString("LED", 50, 50, 4, 1);  // White text at (50,50) size 4 (color index 1 = white)
     
     // Force immediate display
     canvas = matrix->SwapOnVSync(canvas, 1);
     
     // Test: draw a simple rectangle after SwapOnVSync to see if it appears
     std::cout << "Drawing test rectangle after SwapOnVSync..." << std::endl;
+    Color8 magenta = ColorPalette::getColor(6);  // Magenta
     for (int i = 0; i < 20; i++) {
         for (int j = 0; j < 20; j++) {
-            canvas->SetPixel(100 + i, 100 + j, 255, 0, 255);  // Magenta rectangle
+            canvas->SetPixel(100 + i, 100 + j, magenta.r, magenta.g, magenta.b);  // Magenta rectangle
         }
     }
     canvas = matrix->SwapOnVSync(canvas, 1);

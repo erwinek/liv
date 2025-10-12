@@ -8,6 +8,30 @@
 #include <string>
 #include <memory>
 
+// 8-bit color palette for performance optimization
+struct Color8 {
+    uint8_t r, g, b;
+    Color8(uint8_t red = 0, uint8_t green = 0, uint8_t blue = 0) : r(red), g(green), b(blue) {}
+};
+
+// 8-bit color palette with 256 colors
+class ColorPalette {
+public:
+    static const int PALETTE_SIZE = 256;
+    static Color8 palette[PALETTE_SIZE];
+    static bool initialized;
+    
+    // Lookup table for fast RGB to 8-bit conversion
+    static uint8_t rgb_lookup[256][256][256];
+    static bool lookup_initialized;
+    
+    static void initialize();
+    static void initializeLookupTable();
+    static uint8_t rgbTo8bit(uint8_t r, uint8_t g, uint8_t b);
+    static uint8_t rgbTo8bitFast(uint8_t r, uint8_t g, uint8_t b);
+    static Color8 getColor(uint8_t index);
+};
+
 struct DisplayElement {
     enum Type { GIF, TEXT };
     Type type;
@@ -24,14 +48,14 @@ struct DisplayElement {
     // For text elements
     std::string text;
     uint8_t font_size;
-    uint8_t color_r, color_g, color_b;
+    uint8_t color_index; // 8-bit color index instead of RGB
     uint64_t scroll_offset;
     uint64_t scroll_delay_us;
     uint64_t last_scroll_time;
     
     DisplayElement() : type(GIF), x(0), y(0), width(0), height(0), active(false),
                       current_frame(0), last_frame_time(0), frame_delay_us(100000),
-                      font_size(1), color_r(255), color_g(255), color_b(255),
+                      font_size(1), color_index(255), // White color index
                       scroll_offset(0), scroll_delay_us(1000000), last_scroll_time(0) {}
 };
 
@@ -61,7 +85,7 @@ public:
     
     // Add text element
     bool addTextElement(const std::string& text, uint16_t x, uint16_t y,
-                       uint8_t font_size, uint8_t r, uint8_t g, uint8_t b);
+                       uint8_t font_size, uint8_t color_index);
     
     // Remove element at position
     void removeElement(uint16_t x, uint16_t y);
@@ -83,6 +107,9 @@ private:
     // BDF Font
     BdfFont bdf_font;
     
+    // Diagnostic display flag
+    bool diagnostic_drawn;
+    
     // Screen bounds
     static const int SCREEN_WIDTH = 192;
     static const int SCREEN_HEIGHT = 192;
@@ -98,10 +125,9 @@ private:
     void clipToBounds(uint16_t& x, uint16_t& y, uint16_t& width, uint16_t& height);
     
     // Text rendering helpers
-    void drawChar(char c, uint16_t x, uint16_t y, uint8_t font_size, 
-                 uint8_t r, uint8_t g, uint8_t b);
+    void drawChar(char c, uint16_t x, uint16_t y, uint8_t font_size, uint8_t color_index);
     void drawString(const std::string& str, uint16_t x, uint16_t y, 
-                   uint8_t font_size, uint8_t r, uint8_t g, uint8_t b);
+                   uint8_t font_size, uint8_t color_index);
     
     // Time utilities
     uint64_t getCurrentTimeUs();

@@ -109,8 +109,8 @@ int main(int argc, char *argv[]) {
         // Update display
         display_manager.updateDisplay();
         
-        // Small delay to prevent 100% CPU usage
-        usleep(1000); // 1ms
+        // Small delay to prevent 100% CPU usage - 30Hz refresh rate
+        usleep(33333); // ~33ms for 30Hz
     }
 
     printf("\nShutting down gracefully...\n");

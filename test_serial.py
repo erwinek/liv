@@ -25,6 +25,34 @@ def calculate_checksum(data):
         checksum ^= byte
     return checksum
 
+def rgb_to_8bit(r, g, b):
+    """Convert RGB to 8-bit color index (simplified palette)"""
+    # Basic color mapping for common colors
+    if r == 255 and g == 255 and b == 255: return 1   # White
+    if r == 0 and g == 0 and b == 0: return 0         # Black
+    if r == 255 and g == 0 and b == 0: return 2       # Red
+    if r == 0 and g == 255 and b == 0: return 3       # Green
+    if r == 0 and g == 0 and b == 255: return 4       # Blue
+    if r == 255 and g == 255 and b == 0: return 5     # Yellow
+    if r == 255 and g == 0 and b == 255: return 6     # Magenta
+    if r == 0 and g == 255 and b == 255: return 7     # Cyan
+    if r == 128 and g == 128 and b == 128: return 8   # Gray
+    if r == 192 and g == 192 and b == 192: return 9   # Light Gray
+    if r == 64 and g == 64 and b == 64: return 10     # Dark Gray
+    if r == 255 and g == 128 and b == 0: return 11    # Orange
+    if r == 128 and g == 0 and b == 128: return 12    # Purple
+    if r == 0 and g == 128 and b == 0: return 13      # Dark Green
+    if r == 0 and g == 0 and b == 128: return 14      # Dark Blue
+    if r == 128 and g == 128 and b == 0: return 15    # Olive
+    
+    # For other colors, use a simple quantization
+    r_q = (r // 51) * 51  # Quantize to 0, 51, 102, 153, 204, 255
+    g_q = (g // 51) * 51
+    b_q = (b // 51) * 51
+    
+    # Map to palette index (16 + RGB cube position)
+    return 16 + (r_q // 51) * 36 + (g_q // 51) * 6 + (b_q // 51)
+
 def create_packet(screen_id, command, payload):
     """Create a protocol packet"""
     # Create packet header: SOF + screen_id + command + payload_length
@@ -64,12 +92,15 @@ def send_text_command(ser, screen_id, text, x, y, font_size, r, g, b):
     text_bytes = text.encode('ascii')[:31]  # Max 32 chars
     text_bytes = text_bytes.ljust(32, b'\x00')
     
+    # Convert RGB to 8-bit color index
+    color_index = rgb_to_8bit(r, g, b)
+    
     payload = struct.pack('BBHHBBBBB', screen_id, CMD_DISPLAY_TEXT, x, y, 
                          font_size, r, g, b, len(text)) + text_bytes
     
     packet = create_packet(screen_id, CMD_DISPLAY_TEXT, payload)
     ser.write(packet)
-    print(f"Sent TEXT command: '{text}' at ({x},{y}) font {font_size} color ({r},{g},{b})")
+    print(f"Sent TEXT command: '{text}' at ({x},{y}) font {font_size} color ({r},{g},{b}) -> index {color_index}")
 
 def send_clear_command(ser, screen_id):
     """Send clear screen command"""
