@@ -15,12 +15,13 @@ set(RGB_MATRIX_DIR "${CMAKE_SOURCE_DIR}/../rpi-rgb-led-matrix")
 include_directories(
     ${GRAPHICSMAGICK_INCLUDE_DIRS}
     ${RGB_MATRIX_DIR}/include
+    ${CMAKE_SOURCE_DIR}
 )
 
 # Add source files
 add_executable(led-image-viewer
     main.cpp
-    led-image-viewer.cc
+    led-image-viewer-impl.cpp
 )
 
 # Link libraries
@@ -43,4 +44,5 @@ target_compile_options(led-image-viewer PRIVATE
     -Wall
     -Wextra
     -Wno-unused-parameter
+    -Wno-deprecated-declarations
 )

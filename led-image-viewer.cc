@@ -67,6 +67,7 @@ struct FileInfo {
 };
 
 volatile bool interrupt_received = false;
+
 static void InterruptHandler(int signo) {
   interrupt_received = true;
 }

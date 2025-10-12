@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+extern volatile bool interrupt_received;
+
 struct ImageParams {
     ImageParams() : anim_duration_ms(distant_future), wait_ms(1500),
                    anim_delay_ms(-1), loops(-1), vsync_multiple(1) {}
