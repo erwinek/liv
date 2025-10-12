@@ -1,4 +1,4 @@
-#include "led-image-viewer.h"
+#include "LedImgViewer.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>

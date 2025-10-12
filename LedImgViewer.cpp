@@ -19,7 +19,7 @@
 // Then compile with
 // $ make led-image-viewer
 
-#include "led-image-viewer.h"
+#include "LedImgViewer.h"
 #include "led-matrix.h"
 #include "pixel-mapper.h"
 #include "content-streamer.h"
