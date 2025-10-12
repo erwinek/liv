@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <iostream>
+#include <iomanip>
 
 SerialProtocol::SerialProtocol() : serial_fd(-1) {
 }
@@ -91,11 +92,15 @@ void SerialProtocol::processData() {
     ssize_t bytes_read = read(serial_fd, &byte, 1);
     
     while (bytes_read > 0) {
+        std::cout << "Received byte: 0x" << std::hex << (int)byte << std::dec << std::endl;
         addToBuffer(byte);
         bytes_read = read(serial_fd, &byte, 1);
     }
     
-    processBuffer();
+    if (rx_buffer.size() > 0) {
+        std::cout << "Buffer size: " << rx_buffer.size() << ", calling processBuffer()" << std::endl;
+        processBuffer();
+    }
 }
 
 void SerialProtocol::sendResponse(uint8_t screen_id, ResponseCode code, const uint8_t* data, uint8_t data_len) {
@@ -156,6 +161,23 @@ void SerialProtocol::close() {
     }
 }
 
+void SerialProtocol::sendTestData() {
+    if (serial_fd == -1) {
+        std::cout << "Serial port not open, cannot send test data" << std::endl;
+        return;
+    }
+    
+    // Send a simple test message
+    const char* test_msg = "LED_TEST\r\n";
+    ssize_t bytes_written = write(serial_fd, test_msg, strlen(test_msg));
+    
+    if (bytes_written > 0) {
+        std::cout << "Sent test data: " << test_msg << " (" << bytes_written << " bytes)" << std::endl;
+    } else {
+        std::cout << "Failed to send test data" << std::endl;
+    }
+}
+
 uint8_t SerialProtocol::calculateChecksum(const uint8_t* data, uint8_t length) {
     uint8_t checksum = 0;
     for (uint8_t i = 0; i < length; i++) {
@@ -167,50 +189,70 @@ uint8_t SerialProtocol::calculateChecksum(const uint8_t* data, uint8_t length) {
 bool SerialProtocol::validatePacket(const ProtocolPacket* packet) {
     if (!packet) return false;
     
+    std::cout << "validatePacket: SOF=" << (int)packet->sof << " EOF=" << (int)packet->eof 
+              << " payload_length=" << (int)packet->payload_length << std::endl;
+    
     // Check SOF and EOF
     if (packet->sof != PROTOCOL_SOF || packet->eof != PROTOCOL_EOF) {
+        std::cout << "SOF/EOF validation failed: SOF=" << (int)packet->sof << " EOF=" << (int)packet->eof << std::endl;
         return false;
     }
     
     // Check payload length
     if (packet->payload_length > PROTOCOL_MAX_PAYLOAD) {
+        std::cout << "Payload length validation failed: " << (int)packet->payload_length << " > " << PROTOCOL_MAX_PAYLOAD << std::endl;
         return false;
     }
     
     // Verify checksum
     uint8_t calculated_checksum = calculateChecksum(packet->payload, packet->payload_length);
+    std::cout << "Checksum: received=" << (int)packet->checksum << " calculated=" << (int)calculated_checksum << std::endl;
+    
     if (packet->checksum != calculated_checksum) {
+        std::cout << "Checksum validation failed" << std::endl;
         return false;
     }
     
+    std::cout << "All validations passed" << std::endl;
     return true;
 }
 
 void SerialProtocol::parsePacket(const ProtocolPacket* packet) {
+    std::cout << "parsePacket: command=" << (int)packet->command << " payload_length=" << (int)packet->payload_length << std::endl;
+    
     if (!validatePacket(packet)) {
+        std::cout << "Packet validation failed" << std::endl;
         sendResponse(packet->screen_id, RESP_PROTOCOL_ERROR);
         return;
     }
+    
+    std::cout << "Packet validation passed" << std::endl;
     
     void* command = nullptr;
     
     switch (packet->command) {
         case CMD_LOAD_GIF:
+            std::cout << "Parsing GIF command" << std::endl;
             command = parseGifCommand(packet->payload, packet->payload_length);
             break;
         case CMD_DISPLAY_TEXT:
+            std::cout << "Parsing TEXT command" << std::endl;
             command = parseTextCommand(packet->payload, packet->payload_length);
             break;
         case CMD_CLEAR_SCREEN:
+            std::cout << "Parsing CLEAR command" << std::endl;
             command = parseClearCommand(packet->payload, packet->payload_length);
             break;
         case CMD_SET_BRIGHTNESS:
+            std::cout << "Parsing BRIGHTNESS command" << std::endl;
             command = parseBrightnessCommand(packet->payload, packet->payload_length);
             break;
         case CMD_GET_STATUS:
+            std::cout << "Parsing STATUS command" << std::endl;
             command = parseStatusCommand(packet->payload, packet->payload_length);
             break;
         default:
+            std::cout << "Unknown command: " << (int)packet->command << std::endl;
             sendResponse(packet->screen_id, RESP_ERROR);
             return;
     }
@@ -236,17 +278,51 @@ void SerialProtocol::processBuffer() {
     // Look for complete packets
     for (size_t i = 0; i < rx_buffer.size(); i++) {
         if (rx_buffer[i] == PROTOCOL_SOF) {
-            // Check if we have enough data for a complete packet
-            if (i + sizeof(ProtocolPacket) <= rx_buffer.size()) {
-                ProtocolPacket* packet = (ProtocolPacket*)(&rx_buffer[i]);
+            std::cout << "Found SOF at position " << i << std::endl;
+            
+            // Check if we have enough data for packet header (SOF + screen_id + command + payload_length)
+            if (i + 4 <= rx_buffer.size()) {
+                uint8_t screen_id = rx_buffer[i + 1];
+                uint8_t command = rx_buffer[i + 2];
+                uint8_t payload_length = rx_buffer[i + 3];
                 
-                // Verify EOF is at the expected position
-                if (packet->eof == PROTOCOL_EOF) {
-                    parsePacket(packet);
-                    
-                    // Remove processed packet from buffer
-                    rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + sizeof(ProtocolPacket));
-                    i = 0; // Restart search
+                std::cout << "Packet header: screen_id=" << (int)screen_id 
+                          << " command=" << (int)command 
+                          << " payload_length=" << (int)payload_length << std::endl;
+                
+                // Calculate total packet size: SOF + screen_id + command + payload_length + payload + checksum + EOF
+                size_t total_packet_size = 4 + payload_length + 2; // header + payload + checksum + EOF
+                
+                if (i + total_packet_size <= rx_buffer.size()) {
+                    // Check EOF at the calculated position
+                    size_t eof_position = i + total_packet_size - 1;
+                    if (rx_buffer[eof_position] == PROTOCOL_EOF) {
+                        std::cout << "Complete packet found, parsing..." << std::endl;
+                        
+                        // Create a temporary ProtocolPacket for parsing
+                        ProtocolPacket packet;
+                        packet.sof = rx_buffer[i];
+                        packet.screen_id = rx_buffer[i + 1];
+                        packet.command = rx_buffer[i + 2];
+                        packet.payload_length = rx_buffer[i + 3];
+                        
+                        // Copy payload
+                        memcpy(packet.payload, &rx_buffer[i + 4], payload_length);
+                        
+                        // Set checksum and EOF
+                        packet.checksum = rx_buffer[eof_position - 1];
+                        packet.eof = rx_buffer[eof_position];
+                        
+                        parsePacket(&packet);
+                        
+                        // Remove processed packet from buffer
+                        rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + total_packet_size);
+                        i = 0; // Restart search
+                    } else {
+                        std::cout << "EOF mismatch: expected 0x55, got 0x" << std::hex << (int)rx_buffer[eof_position] << std::dec << " at position " << eof_position << std::endl;
+                    }
+                } else {
+                    std::cout << "Not enough data for complete packet (need " << total_packet_size << " bytes)" << std::endl;
                 }
             }
         }
@@ -273,23 +349,34 @@ void* SerialProtocol::parseGifCommand(const uint8_t* payload, uint8_t length) {
 }
 
 void* SerialProtocol::parseTextCommand(const uint8_t* payload, uint8_t length) {
+    std::cout << "parseTextCommand: length=" << (int)length << " sizeof(TextCommand)=" << sizeof(TextCommand) << std::endl;
+    
     if (length < sizeof(TextCommand)) {
+        std::cout << "parseTextCommand: payload too short" << std::endl;
         return nullptr;
     }
     
     TextCommand* cmd = (TextCommand*)malloc(sizeof(TextCommand));
-    if (!cmd) return nullptr;
+    if (!cmd) {
+        std::cout << "parseTextCommand: malloc failed" << std::endl;
+        return nullptr;
+    }
     
     memcpy(cmd, payload, sizeof(TextCommand));
+    
+    std::cout << "parseTextCommand: x=" << cmd->x_pos << " y=" << cmd->y_pos 
+              << " font_size=" << (int)cmd->font_size << " text_length=" << (int)cmd->text_length << std::endl;
     
     // Validate parameters
     if (cmd->x_pos >= 192 || cmd->y_pos >= 192 || 
         cmd->font_size == 0 || cmd->font_size > 8 ||
         cmd->text_length > PROTOCOL_MAX_TEXT_LENGTH) {
+        std::cout << "parseTextCommand: validation failed" << std::endl;
         free(cmd);
         return nullptr;
     }
     
+    std::cout << "parseTextCommand: success, returning command" << std::endl;
     return cmd;
 }
 

@@ -123,6 +123,9 @@ public:
     
     // Close serial connection
     void close();
+    
+    // Test function to send test data
+    void sendTestData();
 
 private:
     int serial_fd;

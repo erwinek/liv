@@ -6,9 +6,14 @@
 #include <cstring>
 #include <unistd.h>
 #include <cstdlib>
+#include <climits>
 
 DisplayManager::DisplayManager(rgb_matrix::RGBMatrix* matrix) 
     : matrix(matrix), canvas(nullptr), current_brightness(100), last_update_time(0) {
+    // Load BDF font
+    if (!bdf_font.loadFromFile("fonts/5x7.bdf")) {
+        std::cerr << "Failed to load BDF font, using fallback" << std::endl;
+    }
 }
 
 DisplayManager::~DisplayManager() {
@@ -114,6 +119,10 @@ void DisplayManager::updateDisplay() {
     if (has_active_elements) {
         // Clear canvas only when we have elements to draw
         canvas->Clear();
+    } else {
+        // If no elements, redraw diagnostic pattern to keep it visible
+        addDiagnosticElements();
+        return; // Don't process elements since there are none
     }
     
     // Update and draw all active elements
@@ -149,8 +158,11 @@ void DisplayManager::setBrightness(uint8_t brightness) {
 
 bool DisplayManager::addGifElement(const std::string& filename, uint16_t x, uint16_t y, 
                                   uint16_t width, uint16_t height) {
+    std::cout << "addGifElement called: " << filename << " at (" << x << "," << y << ") size " << width << "x" << height << std::endl;
+    
     // Check bounds
     if (!isWithinBounds(x, y, width, height)) {
+        std::cout << "Bounds check failed" << std::endl;
         return false;
     }
     
@@ -182,13 +194,17 @@ bool DisplayManager::addGifElement(const std::string& filename, uint16_t x, uint
     }
     
     elements.push_back(element);
+    std::cout << "GIF element added successfully. Total elements: " << elements.size() << std::endl;
     return true;
 }
 
 bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_t y,
                                    uint8_t font_size, uint8_t r, uint8_t g, uint8_t b) {
+    std::cout << "addTextElement called: '" << text << "' at (" << x << "," << y << ") font " << (int)font_size << std::endl;
+    
     // Check bounds
     if (!isWithinBounds(x, y, font_size * text.length(), font_size * 8)) {
+        std::cout << "Text bounds check failed" << std::endl;
         return false;
     }
     
@@ -209,6 +225,7 @@ bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_
     element.active = true;
     
     elements.push_back(element);
+    std::cout << "Text element added successfully. Total elements: " << elements.size() << std::endl;
     return true;
 }
 
@@ -323,42 +340,84 @@ void DisplayManager::clipToBounds(uint16_t& x, uint16_t& y, uint16_t& width, uin
 
 void DisplayManager::drawChar(char c, uint16_t x, uint16_t y, uint8_t font_size, 
                              uint8_t r, uint8_t g, uint8_t b) {
-    // Simple 5x7 character font
-    static const uint8_t font[95][7] = {
-        {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // space
-        {0x04, 0x04, 0x04, 0x04, 0x04, 0x00, 0x04}, // !
-        {0x0A, 0x0A, 0x0A, 0x00, 0x00, 0x00, 0x00}, // "
-        // ... (simplified - would need full font data)
-    };
+    if (!canvas) return;
     
-    if (c < 32 || c > 126) c = 32; // Use space for invalid chars
+    // Get character from BDF font
+    const BdfChar* bdf_char = bdf_font.getChar(static_cast<uint32_t>(c));
+    if (!bdf_char) {
+        std::cout << "drawChar: No BDF char found for '" << c << "' (ASCII " << (int)c << ")" << std::endl;
+        // Fallback: draw a simple rectangle for unknown characters
+        for (int sy = 0; sy < font_size * 7; sy++) {
+            for (int sx = 0; sx < font_size * 5; sx++) {
+                canvas->SetPixel(x + sx, y + sy, r, g, b);
+            }
+        }
+        return;
+    }
     
-    const uint8_t* char_data = font[c - 32];
+    std::cout << "drawChar: Drawing '" << c << "' at (" << x << "," << y << ") size " << (int)font_size 
+              << " BDF size " << bdf_char->width << "x" << bdf_char->height << std::endl;
     
-    for (int row = 0; row < 7; row++) {
-        for (int col = 0; col < 5; col++) {
-            if (char_data[row] & (0x10 >> col)) {
-                // Draw pixel scaled by font_size
-                for (int sy = 0; sy < font_size; sy++) {
-                    for (int sx = 0; sx < font_size; sx++) {
-                        canvas->SetPixel(x + col * font_size + sx, 
-                                       y + row * font_size + sy, r, g, b);
+    // Calculate bytes per row
+    int bytes_per_row = (bdf_char->width + 7) / 8;
+    
+    std::cout << "drawChar: Bitmap size: " << bdf_char->bitmap.size() << " bytes, bytes_per_row: " << bytes_per_row << std::endl;
+    
+    int pixels_drawn = 0;
+    
+    // Draw character scaled by font_size
+    for (int row = 0; row < bdf_char->height; row++) {
+        for (int col = 0; col < bdf_char->width; col++) {
+            // Get bit from bitmap
+            int byte_index = row * bytes_per_row + col / 8;
+            int bit_index = 7 - (col % 8); // BDF uses MSB first
+            
+            if (byte_index < bdf_char->bitmap.size()) {
+                uint8_t byte_val = bdf_char->bitmap[byte_index];
+                if (byte_val & (1 << bit_index)) {
+                    // Draw pixel scaled by font_size
+                    for (int sy = 0; sy < font_size; sy++) {
+                        for (int sx = 0; sx < font_size; sx++) {
+                            int pixel_x = x + (col + bdf_char->x_offset) * font_size + sx;
+                            int pixel_y = y + (row + bdf_char->y_offset) * font_size + sy;
+                            
+                            // Check bounds
+                            if (pixel_x >= 0 && pixel_x < SCREEN_WIDTH && 
+                                pixel_y >= 0 && pixel_y < SCREEN_HEIGHT) {
+                                canvas->SetPixel(pixel_x, pixel_y, r, g, b);
+                                pixels_drawn++;
+                            }
+                        }
                     }
                 }
             }
         }
     }
+    
+    std::cout << "drawChar: Drew " << pixels_drawn << " pixels for '" << c << "'" << std::endl;
 }
 
 void DisplayManager::drawString(const std::string& str, uint16_t x, uint16_t y, 
                                uint8_t font_size, uint8_t r, uint8_t g, uint8_t b) {
     uint16_t current_x = x;
     
+    std::cout << "drawString: Drawing '" << str << "' at (" << x << "," << y << ") size " << (int)font_size << std::endl;
+    
     for (char c : str) {
         if (current_x >= SCREEN_WIDTH) break;
         
+        std::cout << "drawString: About to draw char '" << c << "' at (" << current_x << "," << y << ")" << std::endl;
         drawChar(c, current_x, y, font_size, r, g, b);
-        current_x += font_size * 6; // 5 pixels + 1 space
+        
+        // Get character width from BDF font
+        const BdfChar* bdf_char = bdf_font.getChar(static_cast<uint32_t>(c));
+        if (bdf_char) {
+            current_x += (bdf_char->width + 1) * font_size; // character width + 1 pixel spacing
+            std::cout << "drawString: Char '" << c << "' width " << bdf_char->width << ", next x=" << current_x << std::endl;
+        } else {
+            current_x += font_size * 6; // fallback spacing
+            std::cout << "drawString: Char '" << c << "' not found in BDF, using fallback spacing, next x=" << current_x << std::endl;
+        }
     }
 }
 
@@ -371,12 +430,18 @@ uint64_t DisplayManager::getCurrentTimeUs() {
 void DisplayManager::processGifCommand(GifCommand* cmd) {
     if (!cmd) return;
     
+    std::cout << "Processing GIF command: " << cmd->filename 
+              << " at (" << cmd->x_pos << "," << cmd->y_pos 
+              << ") size " << cmd->width << "x" << cmd->height << std::endl;
+    
     std::string filename(cmd->filename);
     bool success = addGifElement(filename, cmd->x_pos, cmd->y_pos, cmd->width, cmd->height);
     
     if (success) {
+        std::cout << "GIF loaded successfully" << std::endl;
         serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
     } else {
+        std::cout << "Failed to load GIF" << std::endl;
         serial_protocol.sendResponse(cmd->screen_id, RESP_FILE_NOT_FOUND);
     }
 }
@@ -385,12 +450,19 @@ void DisplayManager::processTextCommand(TextCommand* cmd) {
     if (!cmd) return;
     
     std::string text(cmd->text, cmd->text_length);
+    std::cout << "Processing TEXT command: '" << text 
+              << "' at (" << cmd->x_pos << "," << cmd->y_pos 
+              << ") font " << (int)cmd->font_size 
+              << " color (" << (int)cmd->color_r << "," << (int)cmd->color_g << "," << (int)cmd->color_b << ")" << std::endl;
+    
     bool success = addTextElement(text, cmd->x_pos, cmd->y_pos, cmd->font_size, 
                                  cmd->color_r, cmd->color_g, cmd->color_b);
     
     if (success) {
+        std::cout << "Text added successfully" << std::endl;
         serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
     } else {
+        std::cout << "Failed to add text" << std::endl;
         serial_protocol.sendResponse(cmd->screen_id, RESP_INVALID_PARAMS);
     }
 }
@@ -450,8 +522,21 @@ void DisplayManager::addDiagnosticElements() {
         canvas->SetPixel(SCREEN_WIDTH-1, i, 255, 255, 255); // Right border
     }
     
+    // Draw test text "LED" using the new bitmap font
+    std::cout << "Drawing test text 'LED' on diagnostic screen..." << std::endl;
+    drawString("LED", 50, 50, 4, 255, 255, 255);  // White text at (50,50) size 4
+    
     // Force immediate display
     canvas = matrix->SwapOnVSync(canvas, 1);
     
-    std::cout << "Diagnostic pattern drawn - you should see colored squares in corners and white border" << std::endl;
+    // Test: draw a simple rectangle after SwapOnVSync to see if it appears
+    std::cout << "Drawing test rectangle after SwapOnVSync..." << std::endl;
+    for (int i = 0; i < 20; i++) {
+        for (int j = 0; j < 20; j++) {
+            canvas->SetPixel(100 + i, 100 + j, 255, 0, 255);  // Magenta rectangle
+        }
+    }
+    canvas = matrix->SwapOnVSync(canvas, 1);
+    
+    std::cout << "Diagnostic pattern drawn - you should see colored squares in corners, white border, 'LED' text, and magenta rectangle" << std::endl;
 }

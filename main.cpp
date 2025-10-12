@@ -6,8 +6,11 @@
 #include <climits>
 #include <unistd.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <errno.h>
 
 static void InterruptHandler(int signo) {
+    printf("\nReceived signal %d, shutting down gracefully...\n", signo);
     interrupt_received = true;
 }
 
@@ -72,9 +75,24 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // Set up signal handlers
-    signal(SIGTERM, InterruptHandler);
-    signal(SIGINT, InterruptHandler);
+    // Set up signal handlers with sigaction for better control
+    struct sigaction sa;
+    sa.sa_handler = InterruptHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    
+    if (sigaction(SIGTERM, &sa, NULL) == -1) {
+        perror("sigaction SIGTERM");
+    }
+    if (sigaction(SIGINT, &sa, NULL) == -1) {
+        perror("sigaction SIGINT");
+    }
+    if (sigaction(SIGHUP, &sa, NULL) == -1) {
+        perror("sigaction SIGHUP");
+    }
+    
+    // Ignore SIGPIPE to prevent crashes on broken pipes
+    signal(SIGPIPE, SIG_IGN);
 
     printf("LED Display Controller started\n");
     printf("Screen size: %dx%d\n", matrix->width(), matrix->height());
@@ -95,9 +113,18 @@ int main(int argc, char *argv[]) {
         usleep(1000); // 1ms
     }
 
-    printf("\nShutting down...\n");
-    matrix->Clear();
-    delete matrix;
-
+    printf("\nShutting down gracefully...\n");
+    
+    // Clear the matrix
+    if (matrix) {
+        matrix->Clear();
+        delete matrix;
+        matrix = nullptr;
+    }
+    
+    // Cleanup ImageMagick
+    // Magick::TerminateMagick(); // Not needed in modern ImageMagick
+    
+    printf("LED Display Controller stopped\n");
     return 0;
 }

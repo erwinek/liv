@@ -27,10 +27,24 @@ def calculate_checksum(data):
 
 def create_packet(screen_id, command, payload):
     """Create a protocol packet"""
-    packet = struct.pack('BBBB', PROTOCOL_SOF, screen_id, command, len(payload))
-    packet += payload
+    # Create packet header: SOF + screen_id + command + payload_length
+    header = struct.pack('BBBB', PROTOCOL_SOF, screen_id, command, len(payload))
+    
+    # Calculate checksum of payload only
     checksum = calculate_checksum(payload)
-    packet += struct.pack('BB', checksum, PROTOCOL_EOF)
+    
+    # Create complete packet: header + payload + checksum + EOF
+    packet = header + payload + struct.pack('BB', checksum, PROTOCOL_EOF)
+    
+    # Debug: print packet structure
+    print(f"Packet structure:")
+    print(f"  Header: {header.hex()}")
+    print(f"  Payload ({len(payload)} bytes): {payload.hex()}")
+    print(f"  Checksum: 0x{checksum:02x}")
+    print(f"  EOF: 0x{PROTOCOL_EOF:02x}")
+    print(f"  Total packet: {packet.hex()}")
+    print(f"  Total length: {len(packet)} bytes")
+    
     return packet
 
 def send_gif_command(ser, screen_id, filename, x, y, width, height):
@@ -50,8 +64,8 @@ def send_text_command(ser, screen_id, text, x, y, font_size, r, g, b):
     text_bytes = text.encode('ascii')[:31]  # Max 32 chars
     text_bytes = text_bytes.ljust(32, b'\x00')
     
-    payload = struct.pack('BBHBBBBBB32s', screen_id, CMD_DISPLAY_TEXT, x, y, 
-                         font_size, r, g, b, len(text), text_bytes)
+    payload = struct.pack('BBHHBBBBB', screen_id, CMD_DISPLAY_TEXT, x, y, 
+                         font_size, r, g, b, len(text)) + text_bytes
     
     packet = create_packet(screen_id, CMD_DISPLAY_TEXT, payload)
     ser.write(packet)
@@ -113,11 +127,11 @@ def main():
         time.sleep(0.5)
         
         # 3. Display text
-        send_text_command(ser, screen_id, "Hello World!", 10, 10, 2, 255, 255, 0)
+        send_text_command(ser, screen_id, "HELLO World!", 10, 10, 2, 255, 255, 0)
         time.sleep(2)
         
-        # 4. Load GIF (if available)
-        send_gif_command(ser, screen_id, "anim/1.gif", 0, 0, 96, 96)
+        # 4. Load GIF (if available) - moved to not cover text
+        send_gif_command(ser, screen_id, "anim/1.gif", 96, 96, 96, 96)
         time.sleep(2)
         
         # 5. More text

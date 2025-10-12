@@ -24,6 +24,7 @@ add_executable(led-image-viewer
     LedImgViewer.cpp
     SerialProtocol.cpp
     DisplayManager.cpp
+    BdfFont.cpp
 )
 
 # Link libraries

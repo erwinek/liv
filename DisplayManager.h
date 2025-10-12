@@ -2,6 +2,7 @@
 
 #include "led-matrix.h"
 #include "SerialProtocol.h"
+#include "BdfFont.h"
 #include <Magick++.h>
 #include <vector>
 #include <string>
@@ -78,6 +79,9 @@ private:
     std::vector<DisplayElement> elements;
     uint8_t current_brightness;
     uint64_t last_update_time;
+    
+    // BDF Font
+    BdfFont bdf_font;
     
     // Screen bounds
     static const int SCREEN_WIDTH = 192;
