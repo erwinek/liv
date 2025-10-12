@@ -36,8 +36,8 @@ Load and display a GIF file at specified position and size.
 **Example:**
 ```python
 # Load anim/1.gif at position (0,0) with size 96x96
-payload = struct.pack('BBHHH', 1, 0x01, 0, 0, 96, 96)
-payload += b'anim/1.gif\x00' + b'\x00' * 54  # Pad to 64 bytes
+filename_bytes = b'anim/1.gif\x00' + b'\x00' * 54  # Pad to 64 bytes
+payload = struct.pack('BBHHHH64s', 1, 0x01, 0, 0, 96, 96, filename_bytes)
 ```
 
 ### 2. Display Text (0x02)
@@ -59,8 +59,8 @@ Display text at specified position with font size and color.
 ```python
 # Display "Hello" at (10,10) with font size 2, yellow color
 text = "Hello"
-payload = struct.pack('BBHBBBBBB', 1, 0x02, 10, 10, 2, 255, 255, 0, len(text))
-payload += text.encode('ascii').ljust(32, b'\x00')
+text_bytes = text.encode('ascii').ljust(32, b'\x00')
+payload = struct.pack('BBHBBBBBB32s', 1, 0x02, 10, 10, 2, 255, 255, 0, len(text), text_bytes)
 ```
 
 ### 3. Clear Screen (0x03)
@@ -115,15 +115,15 @@ ser = serial.Serial('/dev/ttyUSB0', 1000000)
 
 # Load GIF
 def send_gif(filename, x, y, w, h):
-    payload = struct.pack('BBHHH', 1, 0x01, x, y, w, h)
-    payload += filename.encode('ascii').ljust(64, b'\x00')
+    filename_bytes = filename.encode('ascii').ljust(64, b'\x00')
+    payload = struct.pack('BBHHHH64s', 1, 0x01, x, y, w, h, filename_bytes)
     packet = create_packet(1, 0x01, payload)
     ser.write(packet)
 
 # Display text
 def send_text(text, x, y, font_size, r, g, b):
-    payload = struct.pack('BBHBBBBBB', 1, 0x02, x, y, font_size, r, g, b, len(text))
-    payload += text.encode('ascii').ljust(32, b'\x00')
+    text_bytes = text.encode('ascii').ljust(32, b'\x00')
+    payload = struct.pack('BBHBBBBBB32s', 1, 0x02, x, y, font_size, r, g, b, len(text), text_bytes)
     packet = create_packet(1, 0x02, payload)
     ser.write(packet)
 

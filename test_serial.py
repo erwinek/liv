@@ -39,8 +39,7 @@ def send_gif_command(ser, screen_id, filename, x, y, width, height):
     filename_bytes = filename.encode('ascii')[:63] + b'\x00'
     filename_bytes = filename_bytes.ljust(64, b'\x00')
     
-    payload = struct.pack('BBHHH', screen_id, CMD_LOAD_GIF, x, y, width, height)
-    payload += filename_bytes
+    payload = struct.pack('BBHHHH64s', screen_id, CMD_LOAD_GIF, x, y, width, height, filename_bytes)
     
     packet = create_packet(screen_id, CMD_LOAD_GIF, payload)
     ser.write(packet)
@@ -51,9 +50,8 @@ def send_text_command(ser, screen_id, text, x, y, font_size, r, g, b):
     text_bytes = text.encode('ascii')[:31]  # Max 32 chars
     text_bytes = text_bytes.ljust(32, b'\x00')
     
-    payload = struct.pack('BBHBBBBBB', screen_id, CMD_DISPLAY_TEXT, x, y, 
-                         font_size, r, g, b, len(text))
-    payload += text_bytes
+    payload = struct.pack('BBHBBBBBB32s', screen_id, CMD_DISPLAY_TEXT, x, y, 
+                         font_size, r, g, b, len(text), text_bytes)
     
     packet = create_packet(screen_id, CMD_DISPLAY_TEXT, payload)
     ser.write(packet)
