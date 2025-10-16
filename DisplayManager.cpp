@@ -421,6 +421,9 @@ void DisplayManager::drawTextElement(const DisplayElement& element) {
             }
             
             // Draw with custom font - native size (no scaling)
+            // Calculate baseline position for proper vertical alignment
+            int baseline_y = y + temp_font.getFontAscent();
+            
             uint16_t current_x = x;
             for (char c : display_text) {
                 if (current_x >= SCREEN_WIDTH) break;
@@ -428,6 +431,8 @@ void DisplayManager::drawTextElement(const DisplayElement& element) {
                 const BdfChar* bdf_char = temp_font.getChar(static_cast<uint32_t>(c));
                 if (bdf_char) {
                     // Draw character using temp_font at native size
+                    // In BDF: y_offset is distance from baseline to character's bottom edge
+                    // Characters are drawn from top (row=0) to bottom (row=height-1)
                     int bytes_per_row = (bdf_char->width + 7) / 8;
                     for (int row = 0; row < bdf_char->height; row++) {
                         for (int col = 0; col < bdf_char->width; col++) {
@@ -438,10 +443,14 @@ void DisplayManager::drawTextElement(const DisplayElement& element) {
                                 uint8_t byte_val = bdf_char->bitmap[byte_index];
                                 if (byte_val & (1 << bit_index)) {
                                     Color8 color = ColorPalette::getColor(element.color_index);
-                                    int px = current_x + col;
-                                    int py = y + row;
+                                    // Apply x_offset horizontally
+                                    int px = current_x + col + bdf_char->x_offset;
+                                    // Apply baseline-relative positioning:
+                                    // baseline + y_offset gives bottom of character
+                                    // Subtract (height - row - 1) to get position for this row
+                                    int py = baseline_y + bdf_char->y_offset - bdf_char->height + row + 1;
                                     
-                                    if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT) {
+                                    if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
                                         canvas->SetPixel(px, py, color.r, color.g, color.b);
                                     }
                                 }

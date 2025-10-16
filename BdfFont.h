@@ -24,11 +24,15 @@ public:
     const BdfChar* getChar(uint32_t encoding) const;
     int getCharWidth() const { return char_width; }
     int getCharHeight() const { return char_height; }
+    int getFontAscent() const { return font_ascent; }
+    int getFontDescent() const { return font_descent; }
     
 private:
     std::map<uint32_t, BdfChar> chars;
     int char_width;
     int char_height;
+    int font_ascent;
+    int font_descent;
     
     bool parseBdfFile(const std::string& filename);
     BdfChar parseChar(std::ifstream& file);

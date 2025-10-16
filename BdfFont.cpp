@@ -4,7 +4,7 @@
 #include <iostream>
 #include <iomanip>
 
-BdfFont::BdfFont() : char_width(5), char_height(7) {
+BdfFont::BdfFont() : char_width(5), char_height(7), font_ascent(7), font_descent(0) {
 }
 
 BdfFont::~BdfFont() {
@@ -36,6 +36,18 @@ bool BdfFont::parseBdfFile(const std::string& filename) {
             std::string token;
             iss >> token >> char_width >> char_height;
             std::cout << "Font bounding box: " << char_width << "x" << char_height << std::endl;
+        }
+        else if (line.find("FONT_ASCENT") == 0) {
+            std::istringstream iss(line);
+            std::string token;
+            iss >> token >> font_ascent;
+            std::cout << "Font ascent: " << font_ascent << std::endl;
+        }
+        else if (line.find("FONT_DESCENT") == 0) {
+            std::istringstream iss(line);
+            std::string token;
+            iss >> token >> font_descent;
+            std::cout << "Font descent: " << font_descent << std::endl;
         }
         else if (line.find("STARTCHAR") == 0) {
             // Parse character
