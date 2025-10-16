@@ -54,6 +54,7 @@ typedef struct {
     uint8_t color_b;       // Blue component
     uint8_t text_length;   // Length of text
     char text[PROTOCOL_MAX_TEXT_LENGTH];
+    char font_name[32];    // Font file name (e.g., "ComicNeue-Regular-20.bdf")
 } __attribute__((packed)) TextCommand;
 
 // Clear screen command structure

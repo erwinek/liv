@@ -87,7 +87,7 @@ def send_gif_command(ser, screen_id, filename, x, y, width, height):
     ser.write(packet)
     print(f"Sent GIF command: {filename} at ({x},{y}) size {width}x{height}")
 
-def send_text_command(ser, screen_id, text, x, y, font_size, r, g, b):
+def send_text_command(ser, screen_id, text, x, y, font_size, r, g, b, font_name=""):
     """Send text display command
     
     TextCommand structure:
@@ -95,19 +95,27 @@ def send_text_command(ser, screen_id, text, x, y, font_size, r, g, b):
     - command (1 byte)
     - x_pos (2 bytes, uint16)
     - y_pos (2 bytes, uint16)
-    - font_size (1 byte)
+    - font_size (1 byte) - used for scaling with default font, ignored for custom BDF fonts
     - color_r (1 byte)
     - color_g (1 byte)
     - color_b (1 byte)
     - text_length (1 byte)
     - text (32 bytes, null-terminated string)
+    - font_name (32 bytes, null-terminated string) - if specified, font is displayed at native size
+    
+    Note: When font_name is specified, the font is rendered at its native size (no scaling).
+          The font_size parameter is ignored for custom BDF fonts.
     """
     text_bytes = text.encode('ascii')[:32]
     text_length = len(text_bytes)
     text_bytes = text_bytes.ljust(32, b'\x00')
     
+    # Prepare font name (pad to 32 bytes)
+    font_bytes = font_name.encode('ascii')[:32]
+    font_bytes = font_bytes.ljust(32, b'\x00')
+    
     # Pack the TextCommand structure - this goes in the payload
-    payload = struct.pack('BBHHBBBBB32s',
+    payload = struct.pack('BBHHBBBBB32s32s',
                          screen_id,          # screen_id
                          CMD_DISPLAY_TEXT,   # command
                          x,                  # x_pos
@@ -117,11 +125,13 @@ def send_text_command(ser, screen_id, text, x, y, font_size, r, g, b):
                          g,                  # color_g
                          b,                  # color_b
                          text_length,        # text_length
-                         text_bytes)         # text
+                         text_bytes,         # text
+                         font_bytes)         # font_name
     
     packet = create_packet(screen_id, CMD_DISPLAY_TEXT, payload)
     ser.write(packet)
-    print(f"Sent TEXT command: '{text}' at ({x},{y}) font {font_size} color ({r},{g},{b})")
+    font_info = f" font={font_name}" if font_name else ""
+    print(f"Sent TEXT command: '{text}' at ({x},{y}) size {font_size} color ({r},{g},{b}){font_info}")
 
 def send_clear_command(ser, screen_id):
     """Send clear screen command
@@ -201,9 +211,9 @@ def main():
         read_response(ser, 0.5)
         time.sleep(0.5)
         
-        # 3. Display text
-        print("\n--- Test 3: Display Text ---")
-        send_text_command(ser, screen_id, "HELLO!", 10, 10, 2, 255, 255, 0)
+        # 3. Display text with ComicNeue font
+        print("\n--- Test 3: Display Text (ComicNeue) ---")
+        send_text_command(ser, screen_id, "HELLO!", 10, 10, 1, 255, 255, 0, "fonts/ComicNeue-Bold-48.bdf")
         read_response(ser, 0.5)
         time.sleep(2)
         

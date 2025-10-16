@@ -47,6 +47,7 @@ struct DisplayElement {
     
     // For text elements
     std::string text;
+    std::string font_name; // BDF font file name
     uint8_t font_size;
     uint8_t color_index; // 8-bit color index instead of RGB
     uint64_t scroll_offset;
@@ -85,7 +86,7 @@ public:
     
     // Add text element
     bool addTextElement(const std::string& text, uint16_t x, uint16_t y,
-                       uint8_t font_size, uint8_t color_index);
+                       uint8_t font_size, uint8_t color_index, const std::string& font_name = "fonts/5x7.bdf");
     
     // Remove element at position
     void removeElement(uint16_t x, uint16_t y);

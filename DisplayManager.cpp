@@ -322,7 +322,7 @@ bool DisplayManager::addGifElement(const std::string& filename, uint16_t x, uint
 }
 
 bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_t y,
-                                   uint8_t font_size, uint8_t color_index) {
+                                   uint8_t font_size, uint8_t color_index, const std::string& font_name) {
     // Debug print removed for performance
     
     // Check bounds
@@ -339,6 +339,7 @@ bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_
     element.width = font_size * text.length();
     element.height = font_size * 8;
     element.text = text;
+    element.font_name = font_name;
     element.font_size = font_size;
     element.color_index = color_index;
     element.scroll_offset = 0;
@@ -400,7 +401,62 @@ void DisplayManager::drawGifElement(const DisplayElement& element) {
 void DisplayManager::drawTextElement(const DisplayElement& element) {
     if (element.text.empty()) return;
     
-    // Simple character-based font rendering
+    // Load font if specified and different from current
+    if (!element.font_name.empty() && element.font_name != "fonts/5x7.bdf") {
+        BdfFont temp_font;
+        if (temp_font.loadFromFile(element.font_name)) {
+            // Temporarily use this font for rendering
+            uint16_t x = element.x;
+            uint16_t y = element.y;
+            
+            // Handle scrolling
+            std::string display_text = element.text;
+            if (element.scroll_offset > 0) {
+                size_t offset = element.scroll_offset / element.font_size;
+                if (offset < display_text.length()) {
+                    display_text = display_text.substr(offset);
+                } else {
+                    display_text = "";
+                }
+            }
+            
+            // Draw with custom font - native size (no scaling)
+            uint16_t current_x = x;
+            for (char c : display_text) {
+                if (current_x >= SCREEN_WIDTH) break;
+                
+                const BdfChar* bdf_char = temp_font.getChar(static_cast<uint32_t>(c));
+                if (bdf_char) {
+                    // Draw character using temp_font at native size
+                    int bytes_per_row = (bdf_char->width + 7) / 8;
+                    for (int row = 0; row < bdf_char->height; row++) {
+                        for (int col = 0; col < bdf_char->width; col++) {
+                            int byte_index = row * bytes_per_row + (col / 8);
+                            int bit_index = 7 - (col % 8);
+                            
+                            if (byte_index < (int)bdf_char->bitmap.size()) {
+                                uint8_t byte_val = bdf_char->bitmap[byte_index];
+                                if (byte_val & (1 << bit_index)) {
+                                    Color8 color = ColorPalette::getColor(element.color_index);
+                                    int px = current_x + col;
+                                    int py = y + row;
+                                    
+                                    if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT) {
+                                        canvas->SetPixel(px, py, color.r, color.g, color.b);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Move to next character position (native spacing)
+                    current_x += bdf_char->width + 1;
+                }
+            }
+            return;
+        }
+    }
+    
+    // Fallback to default font
     uint16_t x = element.x;
     uint16_t y = element.y;
     
@@ -567,18 +623,25 @@ void DisplayManager::processTextCommand(TextCommand* cmd) {
     if (!cmd) return;
     
     std::string text(cmd->text, cmd->text_length);
-    // Debug print removed for performance
+    std::string font_name(cmd->font_name);
+    
+    // If no font specified, use default
+    if (font_name.empty()) {
+        font_name = "fonts/5x7.bdf";
+    }
+    
+    std::cout << "Processing TEXT command: '" << text << "' with font: " << font_name << std::endl;
     
     // Convert RGB to 8-bit color index using fast lookup
     uint8_t color_index = ColorPalette::rgbTo8bitFast(cmd->color_r, cmd->color_g, cmd->color_b);
     
-    bool success = addTextElement(text, cmd->x_pos, cmd->y_pos, cmd->font_size, color_index);
+    bool success = addTextElement(text, cmd->x_pos, cmd->y_pos, cmd->font_size, color_index, font_name);
     
     if (success) {
-        // Debug print removed for performance
+        std::cout << "Text element added successfully" << std::endl;
         serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
     } else {
-        // Debug print removed for performance
+        std::cout << "Failed to add text element" << std::endl;
         serial_protocol.sendResponse(cmd->screen_id, RESP_INVALID_PARAMS);
     }
 }
