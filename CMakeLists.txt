@@ -4,6 +4,11 @@ project(led_image_viewer)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Set output directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+
 # Find required packages - using pkg-config for GraphicsMagick
 include(FindPkgConfig)
 pkg_check_modules(GRAPHICSMAGICK REQUIRED GraphicsMagick++>=1.3.35)

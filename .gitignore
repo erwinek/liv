@@ -1,3 +1,29 @@
-led-image-viewer
-led-image-viewer.cc
-led-image-viewer.o
+# Binaries
+bin/
+*.o
+*.a
+
+# Build files
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Logs
+logs/
+*.log
+
+# Tests executables
+tests/test_*
+!tests/*.cpp
+!tests/*.py
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.swp
+*.swo
+*~
