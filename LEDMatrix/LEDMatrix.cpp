@@ -34,38 +34,53 @@ void LEDMatrix::setBrightness(uint8_t brightness) {
 
 // Wyświetl tekst
 void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y, 
-                            uint8_t fontSize, uint8_t r, uint8_t g, uint8_t b) {
+                            uint8_t fontSize, uint8_t r, uint8_t g, uint8_t b,
+                            const char* fontName) {
     // Ograniczenie długości tekstu
     uint8_t textLen = strlen(text);
     if (textLen > 31) textLen = 31;
     
-    // Przygotowanie payload: [X_Pos][Y_Pos][FontSize][R][G][B][TextLength][Text(32 bytes)]
-    uint8_t payload[40];
+    // TextCommand structure (zgodna z led-image-viewer):
+    // screen_id (1) + command (1) + x_pos (2) + y_pos (2) + font_size (1) +
+    // color_r (1) + color_g (1) + color_b (1) + text_length (1) + 
+    // text (32) + font_name (32) = 75 bytes
+    uint8_t payload[75];
+    memset(payload, 0, 75);
+    
+    // screen_id
+    payload[0] = _screenId;
+    
+    // command  
+    payload[1] = CMD_DISPLAY_TEXT;
     
     // X Position (little-endian)
-    payload[0] = x & 0xFF;
-    payload[1] = (x >> 8) & 0xFF;
+    payload[2] = x & 0xFF;
+    payload[3] = (x >> 8) & 0xFF;
     
     // Y Position (little-endian)
-    payload[2] = y & 0xFF;
-    payload[3] = (y >> 8) & 0xFF;
+    payload[4] = y & 0xFF;
+    payload[5] = (y >> 8) & 0xFF;
     
     // Font Size
-    payload[4] = fontSize;
+    payload[6] = fontSize;
     
     // Kolor RGB
-    payload[5] = r;
-    payload[6] = g;
-    payload[7] = b;
+    payload[7] = r;
+    payload[8] = g;
+    payload[9] = b;
     
     // Długość tekstu
-    payload[8] = textLen;
+    payload[10] = textLen;
     
-    // Kopiuj tekst i wypełnij zerami
-    memset(&payload[9], 0, 32);
-    strncpy((char*)&payload[9], text, 31);
+    // Kopiuj tekst i wypełnij zerami (32 bytes)
+    strncpy((char*)&payload[11], text, 31);
     
-    sendPacket(CMD_DISPLAY_TEXT, payload, 40);
+    // Kopiuj nazwę czcionki (32 bytes) - jeśli podana
+    if (fontName && strlen(fontName) > 0) {
+        strncpy((char*)&payload[43], fontName, 31);
+    }
+    
+    sendPacket(CMD_DISPLAY_TEXT, payload, 75);
 }
 
 // Załaduj GIF
@@ -109,8 +124,8 @@ uint8_t LEDMatrix::getScreenId() const {
 
 // Wysyłanie pakietu
 void LEDMatrix::sendPacket(uint8_t command, const uint8_t* payload, uint8_t payloadLength) {
-    // Debug - wyświetl pakiet
-    printPacket(command, payload, payloadLength);
+    // Debug - wyświetl pakiet (zakomentowane, bo koliduje z komunikacją przez ten sam Serial)
+    // printPacket(command, payload, payloadLength);
     
     // Buduj i wysyłaj pakiet
     _serial->write(PROTOCOL_SOF);           // Start of Frame
