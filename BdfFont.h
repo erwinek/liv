@@ -8,10 +8,11 @@
 
 struct BdfChar {
     uint32_t encoding;
-    int16_t width;
-    int16_t height;
-    int16_t x_offset;
-    int16_t y_offset;
+    int16_t width;          // BBX width (bitmap width)
+    int16_t height;         // BBX height (bitmap height)
+    int16_t x_offset;       // BBX x offset
+    int16_t y_offset;       // BBX y offset
+    int16_t dwidth;         // DWIDTH (advancement width for cursor)
     std::vector<uint8_t> bitmap;
 };
 

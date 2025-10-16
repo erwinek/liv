@@ -457,8 +457,8 @@ void DisplayManager::drawTextElement(const DisplayElement& element) {
                             }
                         }
                     }
-                    // Move to next character position (native spacing)
-                    current_x += bdf_char->width + 1;
+                    // Move to next character position using DWIDTH (advancement width)
+                    current_x += bdf_char->dwidth;
                 }
             }
             return;
@@ -596,7 +596,7 @@ void DisplayManager::drawString(const std::string& str, uint16_t x, uint16_t y,
         // Get character width from BDF font
         const BdfChar* bdf_char = bdf_font.getChar(static_cast<uint32_t>(c));
         if (bdf_char) {
-            current_x += (bdf_char->width + 1) * font_size; // character width + 1 pixel spacing
+            current_x += bdf_char->dwidth * font_size; // use DWIDTH for proper spacing
         } else {
             current_x += font_size * 6; // fallback spacing
         }

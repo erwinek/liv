@@ -77,13 +77,13 @@ BdfChar BdfFont::parseChar(std::ifstream& file) {
         else if (line.find("DWIDTH") == 0) {
             std::istringstream iss(line);
             std::string token;
-            iss >> token >> ch.width;
+            iss >> token >> ch.dwidth;  // DWIDTH determines character advancement
         }
         else if (line.find("BBX") == 0) {
             std::istringstream iss(line);
             std::string token;
             int16_t x_offset, y_offset;
-            iss >> token >> ch.width >> ch.height >> x_offset >> y_offset;
+            iss >> token >> ch.width >> ch.height >> x_offset >> y_offset;  // BBX determines bitmap size
             ch.x_offset = x_offset;
             ch.y_offset = y_offset;
         }
@@ -101,6 +101,7 @@ BdfChar BdfFont::parseChar(std::ifstream& file) {
         std::cout << "BDF: Parsed char '" << (char)ch.encoding << "' (ASCII " << ch.encoding 
                   << ") size " << ch.width << "x" << ch.height 
                   << " offset (" << ch.x_offset << "," << ch.y_offset << ")"
+                  << " dwidth=" << ch.dwidth
                   << " bitmap size " << ch.bitmap.size() << " bytes" << std::endl;
         
         // Print first few bytes of bitmap
