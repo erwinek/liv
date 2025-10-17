@@ -152,6 +152,9 @@ private:
     uint32_t calculateGifChecksum(const GifCommand* cmd);
     uint32_t calculateTextChecksum(const TextCommand* cmd);
     
+    // Cache management
+    void resetCache();
+    
     // Bounds checking
     bool isWithinBounds(uint16_t x, uint16_t y, uint16_t width, uint16_t height);
     void clipToBounds(uint16_t& x, uint16_t& y, uint16_t& width, uint16_t& height);

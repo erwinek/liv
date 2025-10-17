@@ -885,6 +885,15 @@ void DisplayManager::processStatusCommand(StatusCommand* cmd) {
                                (const uint8_t*)status.c_str(), status.length());
 }
 
+void DisplayManager::resetCache() {
+    // Clear command cache
+    for (int i = 0; i < 256; i++) {
+        command_cache.gif_checksums[i] = 0;
+        command_cache.text_checksums[i] = 0;
+    }
+    std::cout << "Command cache reset" << std::endl;
+}
+
 void DisplayManager::addDiagnosticElements() {
     // Draw simple test pattern directly on canvas
     std::cout << "Drawing diagnostic pattern directly on canvas..." << std::endl;

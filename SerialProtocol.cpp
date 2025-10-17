@@ -83,6 +83,10 @@ bool SerialProtocol::init(const char* device, int baudrate) {
         return false;
     }
     
+    // Flush any existing data in the buffers (important after ESP32 restart)
+    tcflush(serial_fd, TCIOFLUSH);
+    std::cout << "UART buffers flushed" << std::endl;
+    
     std::cout << "Serial protocol initialized on " << device << " at " << baudrate << " bps" << std::endl;
     return true;
 }
