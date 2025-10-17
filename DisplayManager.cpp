@@ -208,6 +208,9 @@ void DisplayManager::processSerialCommands() {
             case CMD_CLEAR_SCREEN:
                 processClearCommand((ClearCommand*)command);
                 break;
+            case CMD_CLEAR_TEXT:
+                processClearTextCommand((ClearCommand*)command); // Same structure as ClearCommand
+                break;
             case CMD_SET_BRIGHTNESS:
                 processBrightnessCommand((BrightnessCommand*)command);
                 break;
@@ -259,18 +262,25 @@ void DisplayManager::updateDisplay() {
     }
     
     // Update and draw all active elements
+    // Draw in two passes: GIFs first, then TEXT on top
+    
+    // Pass 1: Draw GIF elements (background layer)
     for (auto& element : elements) {
         if (!element.active) continue;
         
-        switch (element.type) {
-            case DisplayElement::GIF:
-                updateGifElement(element);
-                drawGifElement(element);
-                break;
-            case DisplayElement::TEXT:
-                updateTextElement(element);
-                drawTextElement(element);
-                break;
+        if (element.type == DisplayElement::GIF) {
+            updateGifElement(element);
+            drawGifElement(element);
+        }
+    }
+    
+    // Pass 2: Draw TEXT elements (foreground layer - always on top)
+    for (auto& element : elements) {
+        if (!element.active) continue;
+        
+        if (element.type == DisplayElement::TEXT) {
+            updateTextElement(element);
+            drawTextElement(element);
         }
     }
     
@@ -285,7 +295,37 @@ void DisplayManager::updateDisplay() {
 void DisplayManager::clearScreen() {
     canvas->Clear();
     elements.clear();
+    
+    // Clear command cache since all elements are removed
+    for (int i = 0; i < 256; i++) {
+        command_cache.gif_checksums[i] = 0;
+        command_cache.text_checksums[i] = 0;
+    }
+    
     diagnostic_drawn = false; // Reset flag when clearing screen
+    display_dirty = true; // Mark display as needing update
+    std::cout << "Screen cleared, cache reset" << std::endl;
+}
+
+void DisplayManager::clearText() {
+    // Remove only TEXT elements, keep GIF elements
+    size_t before_count = elements.size();
+    
+    auto it = elements.begin();
+    while (it != elements.end()) {
+        if (it->type == DisplayElement::TEXT) {
+            // Clear cache for this text element
+            command_cache.text_checksums[it->element_id] = 0;
+            it = elements.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    size_t after_count = elements.size();
+    std::cout << "clearText: removed " << (before_count - after_count) 
+              << " text elements, " << after_count << " elements remaining, cache updated" << std::endl;
+    
     display_dirty = true; // Mark display as needing update
 }
 
@@ -295,8 +335,20 @@ void DisplayManager::setBrightness(uint8_t brightness) {
 }
 
 bool DisplayManager::addGifElement(const std::string& filename, uint16_t x, uint16_t y, 
-                                  uint16_t width, uint16_t height) {
-    std::cout << "addGifElement called: " << filename << " at (" << x << "," << y << ") size " << width << "x" << height << std::endl;
+                                  uint16_t width, uint16_t height, uint8_t element_id) {
+    std::cout << "addGifElement called: ID=" << (int)element_id << " " << filename << " at (" << x << "," << y << ") size " << width << "x" << height << std::endl;
+    
+    // Check if element with same ID already exists - if so, remove it first
+    auto it = elements.begin();
+    while (it != elements.end()) {
+        if (it->element_id == element_id) {
+            std::cout << "Removing duplicate element with ID=" << (int)element_id << std::endl;
+            // Note: we don't clear cache here because the new element will update it
+            it = elements.erase(it);
+        } else {
+            ++it;
+        }
+    }
     
     // Check bounds
     if (!isWithinBounds(x, y, width, height)) {
@@ -316,6 +368,7 @@ bool DisplayManager::addGifElement(const std::string& filename, uint16_t x, uint
     // Create new element
     DisplayElement element;
     element.type = DisplayElement::GIF;
+    element.element_id = element_id;
     element.x = x;
     element.y = y;
     element.width = width;
@@ -338,9 +391,25 @@ bool DisplayManager::addGifElement(const std::string& filename, uint16_t x, uint
 }
 
 bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_t y,
-                                   uint8_t font_size, uint8_t color_index, const std::string& font_name) {
-    // Debug print removed for performance
+                                   uint8_t font_size, uint8_t color_index, const std::string& font_name, uint8_t element_id) {
+    // Check if element with same ID already exists
+    for (auto& element : elements) {
+        if (element.element_id == element_id) {
+            // Update existing element text without recreating it (prevents flicker)
+            element.text = text;
+            element.x = x;
+            element.y = y;
+            element.color_index = color_index;
+            element.font_name = font_name;
+            element.width = font_size * text.length();
+            element.height = font_size * 8;
+            display_dirty = true;
+            std::cout << "Element ID=" << (int)element_id << " updated: '" << text << "'" << std::endl;
+            return true;
+        }
+    }
     
+    // No existing element found, create new one
     // Check bounds
     if (!isWithinBounds(x, y, font_size * text.length(), font_size * 8)) {
         std::cout << "Text bounds check failed" << std::endl;
@@ -350,6 +419,7 @@ bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_
     // Create new element
     DisplayElement element;
     element.type = DisplayElement::TEXT;
+    element.element_id = element_id;
     element.x = x;
     element.y = y;
     element.width = font_size * text.length();
@@ -363,6 +433,7 @@ bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_
     element.active = true;
     
     elements.push_back(element);
+    std::cout << "Element ID=" << (int)element_id << " added. Total elements: " << elements.size() << std::endl;
     display_dirty = true; // Mark display as needing update
     return true;
 }
@@ -370,8 +441,16 @@ bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_
 void DisplayManager::removeElement(uint16_t x, uint16_t y) {
     for (auto it = elements.begin(); it != elements.end(); ++it) {
         if (it->x == x && it->y == y) {
+            // Clear cache for this element
+            if (it->type == DisplayElement::GIF) {
+                command_cache.gif_checksums[it->element_id] = 0;
+            } else if (it->type == DisplayElement::TEXT) {
+                command_cache.text_checksums[it->element_id] = 0;
+            }
+            
             it->active = false;
             elements.erase(it);
+            std::cout << "Element removed at (" << x << "," << y << "), cache cleared" << std::endl;
             break;
         }
     }
@@ -644,18 +723,89 @@ uint64_t DisplayManager::getCurrentTimeUs() {
     return tv.tv_sec * 1000000ULL + tv.tv_usec;
 }
 
+uint32_t DisplayManager::calculateGifChecksum(const GifCommand* cmd) {
+    if (!cmd) return 0;
+    
+    // Calculate simple checksum of relevant parameters (excluding screen_id and command)
+    uint32_t checksum = 0;
+    
+    // Add element_id
+    checksum += cmd->element_id;
+    
+    // Add position and size
+    checksum += cmd->x_pos;
+    checksum += cmd->y_pos;
+    checksum += cmd->width;
+    checksum += cmd->height;
+    
+    // Add filename bytes
+    for (int i = 0; i < PROTOCOL_MAX_FILENAME && cmd->filename[i] != '\0'; i++) {
+        checksum += (uint8_t)cmd->filename[i];
+    }
+    
+    return checksum;
+}
+
+uint32_t DisplayManager::calculateTextChecksum(const TextCommand* cmd) {
+    if (!cmd) return 0;
+    
+    // Calculate simple checksum of relevant parameters (excluding screen_id and command)
+    uint32_t checksum = 0;
+    
+    // Add element_id
+    checksum += cmd->element_id;
+    
+    // Add position
+    checksum += cmd->x_pos;
+    checksum += cmd->y_pos;
+    
+    // Add color
+    checksum += cmd->color_r;
+    checksum += cmd->color_g;
+    checksum += cmd->color_b;
+    
+    // Add text length
+    checksum += cmd->text_length;
+    
+    // Add text bytes
+    for (int i = 0; i < cmd->text_length && i < PROTOCOL_MAX_TEXT_LENGTH; i++) {
+        checksum += (uint8_t)cmd->text[i];
+    }
+    
+    // Add font name bytes
+    for (int i = 0; i < 32 && cmd->font_name[i] != '\0'; i++) {
+        checksum += (uint8_t)cmd->font_name[i];
+    }
+    
+    return checksum;
+}
+
 void DisplayManager::processGifCommand(GifCommand* cmd) {
     if (!cmd) return;
     
-    std::cout << "Processing GIF command: " << cmd->filename 
+    // Calculate checksum for this command
+    uint32_t checksum = calculateGifChecksum(cmd);
+    
+    // Check if this is a duplicate command
+    if (command_cache.gif_checksums[cmd->element_id] == checksum && checksum != 0) {
+        std::cout << "GIF command ID=" << (int)cmd->element_id << " is duplicate (checksum=" 
+                  << checksum << "), skipping processing" << std::endl;
+        serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
+        return;
+    }
+    
+    std::cout << "Processing GIF command: ID=" << (int)cmd->element_id << " " << cmd->filename 
               << " at (" << cmd->x_pos << "," << cmd->y_pos 
-              << ") size " << cmd->width << "x" << cmd->height << std::endl;
+              << ") size " << cmd->width << "x" << cmd->height 
+              << " (checksum=" << checksum << ")" << std::endl;
     
     std::string filename(cmd->filename);
-    bool success = addGifElement(filename, cmd->x_pos, cmd->y_pos, cmd->width, cmd->height);
+    bool success = addGifElement(filename, cmd->x_pos, cmd->y_pos, cmd->width, cmd->height, cmd->element_id);
     
     if (success) {
-        std::cout << "GIF loaded successfully" << std::endl;
+        // Update cache with new checksum
+        command_cache.gif_checksums[cmd->element_id] = checksum;
+        std::cout << "GIF loaded successfully, cache updated" << std::endl;
         serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
     } else {
         std::cout << "Failed to load GIF" << std::endl;
@@ -666,6 +816,17 @@ void DisplayManager::processGifCommand(GifCommand* cmd) {
 void DisplayManager::processTextCommand(TextCommand* cmd) {
     if (!cmd) return;
     
+    // Calculate checksum for this command
+    uint32_t checksum = calculateTextChecksum(cmd);
+    
+    // Check if this is a duplicate command
+    if (command_cache.text_checksums[cmd->element_id] == checksum && checksum != 0) {
+        std::cout << "TEXT command ID=" << (int)cmd->element_id << " is duplicate (checksum=" 
+                  << checksum << "), skipping processing" << std::endl;
+        serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
+        return;
+    }
+    
     std::string text(cmd->text, cmd->text_length);
     std::string font_name(cmd->font_name);
     
@@ -674,15 +835,19 @@ void DisplayManager::processTextCommand(TextCommand* cmd) {
         font_name = "fonts/5x7.bdf";
     }
     
-    std::cout << "Processing TEXT command: '" << text << "' with font: " << font_name << std::endl;
+    std::cout << "Processing TEXT command: ID=" << (int)cmd->element_id << " '" << text 
+              << "' with font: " << font_name << " (checksum=" << checksum << ")" << std::endl;
     
     // Convert RGB to 8-bit color index using fast lookup
     uint8_t color_index = ColorPalette::rgbTo8bitFast(cmd->color_r, cmd->color_g, cmd->color_b);
     
-    bool success = addTextElement(text, cmd->x_pos, cmd->y_pos, cmd->font_size, color_index, font_name);
+    // Use font_size = 1 (no scaling, use native BDF font size)
+    bool success = addTextElement(text, cmd->x_pos, cmd->y_pos, 1, color_index, font_name, cmd->element_id);
     
     if (success) {
-        std::cout << "Text element added successfully" << std::endl;
+        // Update cache with new checksum
+        command_cache.text_checksums[cmd->element_id] = checksum;
+        std::cout << "Text element added successfully, cache updated" << std::endl;
         serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
     } else {
         std::cout << "Failed to add text element" << std::endl;
@@ -694,6 +859,14 @@ void DisplayManager::processClearCommand(ClearCommand* cmd) {
     if (!cmd) return;
     
     clearScreen();
+    serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
+}
+
+void DisplayManager::processClearTextCommand(ClearCommand* cmd) {
+    if (!cmd) return;
+    
+    std::cout << "Processing CLEAR_TEXT command" << std::endl;
+    clearText();
     serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
 }
 

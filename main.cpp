@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < 4; i++) {
             int x = (i % 2) * quarter_width;
             int y = (i / 2) * quarter_height;
-            display_manager.addGifElement(gif_paths[i], x, y, quarter_width, quarter_height);
+            display_manager.addGifElement(gif_paths[i], x, y, quarter_width, quarter_height, i);
         }
     }
 

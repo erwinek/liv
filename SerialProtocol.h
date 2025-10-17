@@ -19,6 +19,7 @@ typedef enum {
     CMD_CLEAR_SCREEN = 0x03,
     CMD_SET_BRIGHTNESS = 0x04,
     CMD_GET_STATUS = 0x05,
+    CMD_CLEAR_TEXT = 0x06,
     CMD_RESPONSE = 0x80
 } CommandType;
 
@@ -35,8 +36,9 @@ typedef enum {
 typedef struct {
     uint8_t screen_id;
     uint8_t command;
+    uint8_t element_id;    // Unique element ID (0-255)
     uint16_t x_pos;        // Left position
-    uint16_t y_pos;        // Top position  
+    uint16_t y_pos;        // Top position
     uint16_t width;        // Display width
     uint16_t height;       // Display height
     char filename[PROTOCOL_MAX_FILENAME];
@@ -46,9 +48,9 @@ typedef struct {
 typedef struct {
     uint8_t screen_id;
     uint8_t command;
+    uint8_t element_id;    // Unique element ID (0-255)
     uint16_t x_pos;        // Left position
     uint16_t y_pos;        // Top position
-    uint8_t font_size;     // Font size (1-8)
     uint8_t color_r;       // Red component
     uint8_t color_g;       // Green component
     uint8_t color_b;       // Blue component
@@ -143,7 +145,7 @@ private:
     // Command parsing
     void* parseGifCommand(const uint8_t* payload, uint8_t length);
     void* parseTextCommand(const uint8_t* payload, uint8_t length);
-    void* parseClearCommand(const uint8_t* payload, uint8_t length);
+    void* parseClearCommand(const uint8_t* payload, uint8_t length, uint8_t packet_screen_id, uint8_t packet_command);
     void* parseBrightnessCommand(const uint8_t* payload, uint8_t length);
     void* parseStatusCommand(const uint8_t* payload, uint8_t length);
 };

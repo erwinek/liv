@@ -36,6 +36,7 @@ public:
 struct DisplayElement {
     enum Type { GIF, TEXT };
     Type type;
+    uint8_t element_id;    // Unique element ID (0-255)
     uint16_t x, y, width, height;
     bool active;
     
@@ -55,10 +56,23 @@ struct DisplayElement {
     uint64_t scroll_delay_us;
     uint64_t last_scroll_time;
     
-    DisplayElement() : type(GIF), x(0), y(0), width(0), height(0), active(false),
+    DisplayElement() : type(GIF), element_id(0), x(0), y(0), width(0), height(0), active(false),
                       current_frame(0), last_frame_time(0), frame_delay_us(100000),
                       font_size(1), color_index(255), // White color index
                       scroll_offset(0), scroll_delay_us(1000000), last_scroll_time(0) {}
+};
+
+// Simple command cache for deduplication
+struct CommandCache {
+    uint32_t gif_checksums[256];  // One checksum per element_id
+    uint32_t text_checksums[256];
+    
+    CommandCache() {
+        for (int i = 0; i < 256; i++) {
+            gif_checksums[i] = 0;
+            text_checksums[i] = 0;
+        }
+    }
 };
 
 class DisplayManager {
@@ -78,16 +92,19 @@ public:
     // Clear entire screen
     void clearScreen();
     
+    // Clear only text elements (keep GIFs)
+    void clearText();
+    
     // Set brightness
     void setBrightness(uint8_t brightness);
     
     // Add GIF element
     bool addGifElement(const std::string& filename, uint16_t x, uint16_t y, 
-                      uint16_t width, uint16_t height);
+                      uint16_t width, uint16_t height, uint8_t element_id);
     
     // Add text element
     bool addTextElement(const std::string& text, uint16_t x, uint16_t y,
-                       uint8_t font_size, uint8_t color_index, const std::string& font_name = "fonts/5x7.bdf");
+                       uint8_t font_size, uint8_t color_index, const std::string& font_name, uint8_t element_id);
     
     // Remove element at position
     void removeElement(uint16_t x, uint16_t y);
@@ -112,6 +129,9 @@ private:
     // Font cache to avoid reloading fonts from disk
     std::map<std::string, BdfFont> font_cache;
     
+    // Command cache for deduplication
+    CommandCache command_cache;
+    
     // Diagnostic display flag
     bool diagnostic_drawn;
     
@@ -127,6 +147,10 @@ private:
     void drawTextElement(const DisplayElement& element);
     void updateGifElement(DisplayElement& element);
     void updateTextElement(DisplayElement& element);
+    
+    // Checksum calculation for command deduplication
+    uint32_t calculateGifChecksum(const GifCommand* cmd);
+    uint32_t calculateTextChecksum(const TextCommand* cmd);
     
     // Bounds checking
     bool isWithinBounds(uint16_t x, uint16_t y, uint16_t width, uint16_t height);
@@ -144,6 +168,7 @@ private:
     void processGifCommand(GifCommand* cmd);
     void processTextCommand(TextCommand* cmd);
     void processClearCommand(ClearCommand* cmd);
+    void processClearTextCommand(ClearCommand* cmd);
     void processBrightnessCommand(BrightnessCommand* cmd);
     void processStatusCommand(StatusCommand* cmd);
 };

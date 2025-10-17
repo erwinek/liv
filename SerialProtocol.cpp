@@ -241,7 +241,11 @@ void SerialProtocol::parsePacket(const ProtocolPacket* packet) {
             break;
         case CMD_CLEAR_SCREEN:
             std::cout << "Parsing CLEAR command" << std::endl;
-            command = parseClearCommand(packet->payload, packet->payload_length);
+            command = parseClearCommand(packet->payload, packet->payload_length, packet->screen_id, packet->command);
+            break;
+        case CMD_CLEAR_TEXT:
+            std::cout << "Parsing CLEAR_TEXT command" << std::endl;
+            command = parseClearCommand(packet->payload, packet->payload_length, packet->screen_id, packet->command);
             break;
         case CMD_SET_BRIGHTNESS:
             std::cout << "Parsing BRIGHTNESS command" << std::endl;
@@ -411,11 +415,10 @@ void* SerialProtocol::parseTextCommand(const uint8_t* payload, uint8_t length) {
     memcpy(cmd, payload, sizeof(TextCommand));
     
     std::cout << "parseTextCommand: x=" << cmd->x_pos << " y=" << cmd->y_pos 
-              << " font_size=" << (int)cmd->font_size << " text_length=" << (int)cmd->text_length << std::endl;
+              << " text_length=" << (int)cmd->text_length << std::endl;
     
     // Validate parameters
     if (cmd->x_pos >= 192 || cmd->y_pos >= 192 || 
-        cmd->font_size == 0 || cmd->font_size > 8 ||
         cmd->text_length > PROTOCOL_MAX_TEXT_LENGTH) {
         std::cout << "parseTextCommand: validation failed" << std::endl;
         free(cmd);
@@ -426,15 +429,22 @@ void* SerialProtocol::parseTextCommand(const uint8_t* payload, uint8_t length) {
     return cmd;
 }
 
-void* SerialProtocol::parseClearCommand(const uint8_t* payload, uint8_t length) {
-    if (length < sizeof(ClearCommand)) {
-        return nullptr;
-    }
-    
+void* SerialProtocol::parseClearCommand(const uint8_t* payload, uint8_t length, uint8_t packet_screen_id, uint8_t packet_command) {
     ClearCommand* cmd = (ClearCommand*)malloc(sizeof(ClearCommand));
     if (!cmd) return nullptr;
     
-    memcpy(cmd, payload, sizeof(ClearCommand));
+    if (length >= sizeof(ClearCommand)) {
+        // Payload contains full command structure
+        memcpy(cmd, payload, sizeof(ClearCommand));
+    } else {
+        // Payload is empty - use values from packet header
+        cmd->screen_id = packet_screen_id;
+        cmd->command = packet_command;
+    }
+    
+    std::cout << "parseClearCommand: created command with screen_id=" << (int)cmd->screen_id 
+              << " command=" << (int)cmd->command << std::endl;
+    
     return cmd;
 }
 
