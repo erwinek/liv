@@ -86,30 +86,37 @@ void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y,
 // Załaduj GIF
 void LEDMatrix::loadGif(const char* filename, uint16_t x, uint16_t y, 
                         uint16_t width, uint16_t height) {
-    // Przygotowanie payload: [X_Pos][Y_Pos][Width][Height][Filename(64 bytes)]
-    uint8_t payload[70];
+    // GifCommand structure (zgodna z led-image-viewer):
+    // screen_id (1) + command (1) + x (2) + y (2) + width (2) + height (2) + filename (64) = 74 bytes
+    uint8_t payload[74];
+    memset(payload, 0, 74);
+    
+    // screen_id
+    payload[0] = _screenId;
+    
+    // command
+    payload[1] = CMD_LOAD_GIF;
     
     // X Position (little-endian)
-    payload[0] = x & 0xFF;
-    payload[1] = (x >> 8) & 0xFF;
+    payload[2] = x & 0xFF;
+    payload[3] = (x >> 8) & 0xFF;
     
     // Y Position (little-endian)
-    payload[2] = y & 0xFF;
-    payload[3] = (y >> 8) & 0xFF;
+    payload[4] = y & 0xFF;
+    payload[5] = (y >> 8) & 0xFF;
     
     // Width (little-endian)
-    payload[4] = width & 0xFF;
-    payload[5] = (width >> 8) & 0xFF;
+    payload[6] = width & 0xFF;
+    payload[7] = (width >> 8) & 0xFF;
     
     // Height (little-endian)
-    payload[6] = height & 0xFF;
-    payload[7] = (height >> 8) & 0xFF;
+    payload[8] = height & 0xFF;
+    payload[9] = (height >> 8) & 0xFF;
     
-    // Kopiuj nazwę pliku i wypełnij zerami
-    memset(&payload[8], 0, 64);
-    strncpy((char*)&payload[8], filename, 63);
+    // Kopiuj nazwę pliku (64 bytes)
+    strncpy((char*)&payload[10], filename, 63);
     
-    sendPacket(CMD_LOAD_GIF, payload, 70);
+    sendPacket(CMD_LOAD_GIF, payload, 74);
 }
 
 // Ustaw ID ekranu
@@ -138,8 +145,13 @@ void LEDMatrix::sendPacket(uint8_t command, const uint8_t* payload, uint8_t payl
         _serial->write(payload, payloadLength);
     }
     
-    // Oblicz i wyślij sumę kontrolną
-    uint8_t checksum = calculateChecksum(payload, payloadLength);
+    // Oblicz i wyślij sumę kontrolną (tylko z payload, zgodnie z SerialProtocol)
+    uint8_t checksum = 0;
+    if (payload && payloadLength > 0) {
+        for (uint8_t i = 0; i < payloadLength; i++) {
+            checksum ^= payload[i];
+        }
+    }
     _serial->write(checksum);
     
     _serial->write(PROTOCOL_EOF);           // End of Frame

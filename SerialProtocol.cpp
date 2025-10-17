@@ -330,21 +330,67 @@ void SerialProtocol::processBuffer() {
 }
 
 void* SerialProtocol::parseGifCommand(const uint8_t* payload, uint8_t length) {
-    if (length < sizeof(GifCommand)) {
+    std::cout << "parseGifCommand: length=" << (int)length << " sizeof(GifCommand)=" << sizeof(GifCommand) << std::endl;
+
+    // Accept two payload variants:
+    // 1) Full GifCommand (74 bytes): [screen_id][command][x:2][y:2][w:2][h:2][filename:64]
+    // 2) Legacy (70 bytes):          [screen_id][command][x:2][y:2][w:2][h:2][filename:60]
+
+    if (!(length == sizeof(GifCommand) || length == 70)) {
+        std::cout << "parseGifCommand: unsupported payload length " << (int)length << std::endl;
         return nullptr;
     }
-    
+
     GifCommand* cmd = (GifCommand*)malloc(sizeof(GifCommand));
-    if (!cmd) return nullptr;
-    
-    memcpy(cmd, payload, sizeof(GifCommand));
-    
+    if (!cmd) {
+        std::cout << "parseGifCommand: malloc failed" << std::endl;
+        return nullptr;
+    }
+
+    if (length == sizeof(GifCommand)) {
+        // Direct copy for current format
+        memcpy(cmd, payload, sizeof(GifCommand));
+    } else {
+        // Legacy 70-byte format parser (filename 60 bytes)
+        // Offsets (little-endian):
+        // 0: screen_id (u8)
+        // 1: command   (u8)
+        // 2: x (u16), 4: y (u16), 6: w (u16), 8: h (u16)
+        // 10: filename (60 bytes)
+        const uint8_t* p = payload;
+        cmd->screen_id = p[0];
+        cmd->command = p[1];
+
+        uint16_t x, y, w, h;
+        memcpy(&x, p + 2, 2);
+        memcpy(&y, p + 4, 2);
+        memcpy(&w, p + 6, 2);
+        memcpy(&h, p + 8, 2);
+        cmd->x_pos = x;
+        cmd->y_pos = y;
+        cmd->width = w;
+        cmd->height = h;
+
+        // Copy 60-byte filename and pad with zeros to 64
+        memset(cmd->filename, 0, sizeof(cmd->filename));
+        memcpy(cmd->filename, p + 10, 60);
+        cmd->filename[63] = '\0';
+    }
+
+    std::cout << "parseGifCommand: screen_id=" << (int)cmd->screen_id
+              << " command=" << (int)cmd->command
+              << " x=" << cmd->x_pos << " y=" << cmd->y_pos
+              << " w=" << cmd->width << " h=" << cmd->height
+              << " filename=" << cmd->filename << std::endl;
+
     // Validate parameters
     if (cmd->x_pos >= 192 || cmd->y_pos >= 192) {
+        std::cout << "parseGifCommand: position out of bounds" << std::endl;
         free(cmd);
         return nullptr;
     }
-    
+
+    std::cout << "parseGifCommand: success, returning command" << std::endl;
     return cmd;
 }
 
