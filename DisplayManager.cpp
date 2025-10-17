@@ -124,7 +124,7 @@ Color8 ColorPalette::getColor(uint8_t index) {
 }
 
 DisplayManager::DisplayManager(rgb_matrix::RGBMatrix* matrix) 
-    : matrix(matrix), canvas(nullptr), current_brightness(100), last_update_time(0), diagnostic_drawn(false) {
+    : matrix(matrix), canvas(nullptr), current_brightness(100), last_update_time(0), diagnostic_drawn(false), display_dirty(true) {
     // Initialize color palette
     ColorPalette::initialize();
     
@@ -227,11 +227,22 @@ void DisplayManager::updateDisplay() {
     
     // Only clear canvas if we have elements to draw
     bool has_active_elements = false;
+    bool has_animated_content = false;
+    
     for (const auto& element : elements) {
         if (element.active) {
             has_active_elements = true;
-            break;
+            // Check if this is animated content (GIF or scrolling text)
+            if (element.type == DisplayElement::GIF || 
+                (element.type == DisplayElement::TEXT && element.text.length() * element.font_size > SCREEN_WIDTH - element.x)) {
+                has_animated_content = true;
+            }
         }
+    }
+    
+    // Only redraw if display is dirty or has animated content
+    if (!display_dirty && !has_animated_content) {
+        return; // Skip rendering for static content that hasn't changed
     }
     
     if (has_active_elements) {
@@ -263,7 +274,10 @@ void DisplayManager::updateDisplay() {
         }
     }
     
-    // Swap canvas
+    // Clear dirty flag after rendering
+    display_dirty = false;
+    
+    // Swap canvas only when we actually rendered something
     canvas = matrix->SwapOnVSync(canvas, 1);
     last_update_time = current_time;
 }
@@ -272,6 +286,7 @@ void DisplayManager::clearScreen() {
     canvas->Clear();
     elements.clear();
     diagnostic_drawn = false; // Reset flag when clearing screen
+    display_dirty = true; // Mark display as needing update
 }
 
 void DisplayManager::setBrightness(uint8_t brightness) {
@@ -317,6 +332,7 @@ bool DisplayManager::addGifElement(const std::string& filename, uint16_t x, uint
     }
     
     elements.push_back(element);
+    display_dirty = true; // Mark display as needing update
     std::cout << "GIF element added successfully. Total elements: " << elements.size() << std::endl;
     return true;
 }
@@ -347,6 +363,7 @@ bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_
     element.active = true;
     
     elements.push_back(element);
+    display_dirty = true; // Mark display as needing update
     return true;
 }
 
@@ -403,9 +420,25 @@ void DisplayManager::drawTextElement(const DisplayElement& element) {
     
     // Load font if specified and different from current
     if (!element.font_name.empty() && element.font_name != "fonts/5x7.bdf") {
-        BdfFont temp_font;
-        if (temp_font.loadFromFile(element.font_name)) {
-            // Temporarily use this font for rendering
+        // Check if font is already in cache
+        BdfFont* font_to_use = nullptr;
+        
+        auto it = font_cache.find(element.font_name);
+        if (it != font_cache.end()) {
+            // Font found in cache, use it
+            font_to_use = &(it->second);
+        } else {
+            // Font not in cache, load it and cache it
+            BdfFont new_font;
+            if (new_font.loadFromFile(element.font_name)) {
+                font_cache[element.font_name] = std::move(new_font);
+                font_to_use = &font_cache[element.font_name];
+                std::cout << "Font " << element.font_name << " loaded and cached" << std::endl;
+            }
+        }
+        
+        if (font_to_use) {
+            // Use cached font for rendering
             uint16_t x = element.x;
             uint16_t y = element.y;
             
@@ -422,15 +455,15 @@ void DisplayManager::drawTextElement(const DisplayElement& element) {
             
             // Draw with custom font - native size (no scaling)
             // Calculate baseline position for proper vertical alignment
-            int baseline_y = y + temp_font.getFontAscent();
+            int baseline_y = y + font_to_use->getFontAscent();
             
             uint16_t current_x = x;
             for (char c : display_text) {
                 if (current_x >= SCREEN_WIDTH) break;
                 
-                const BdfChar* bdf_char = temp_font.getChar(static_cast<uint32_t>(c));
+                const BdfChar* bdf_char = font_to_use->getChar(static_cast<uint32_t>(c));
                 if (bdf_char) {
-                    // Draw character using temp_font at native size
+                    // Draw character using cached font at native size
                     // In BDF: y_offset is distance from baseline to character's bottom edge
                     // Characters are drawn from top (row=0) to bottom (row=height-1)
                     int bytes_per_row = (bdf_char->width + 7) / 8;
@@ -446,9 +479,11 @@ void DisplayManager::drawTextElement(const DisplayElement& element) {
                                     // Apply x_offset horizontally
                                     int px = current_x + col + bdf_char->x_offset;
                                     // Apply baseline-relative positioning:
-                                    // baseline + y_offset gives bottom of character
-                                    // Subtract (height - row - 1) to get position for this row
-                                    int py = baseline_y + bdf_char->y_offset - bdf_char->height + row + 1;
+                                    // In BDF: y_offset is offset from baseline to bottom-left corner
+                                    // bottom = baseline_y - y_offset (screen coords, Y grows down)
+                                    // top = bottom - height
+                                    // For row r (0=top): py = baseline_y - y_offset - height + row
+                                    int py = baseline_y - bdf_char->y_offset - bdf_char->height + row;
                                     
                                     if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
                                         canvas->SetPixel(px, py, color.r, color.g, color.b);

@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <map>
 
 // 8-bit color palette for performance optimization
 struct Color8 {
@@ -108,8 +109,14 @@ private:
     // BDF Font
     BdfFont bdf_font;
     
+    // Font cache to avoid reloading fonts from disk
+    std::map<std::string, BdfFont> font_cache;
+    
     // Diagnostic display flag
     bool diagnostic_drawn;
+    
+    // Display dirty flag - true when redraw is needed
+    bool display_dirty;
     
     // Screen bounds
     static const int SCREEN_WIDTH = 192;
