@@ -28,7 +28,7 @@ void loop() {
   if (!commandsSent || millis() % 5000 < 100) {
     matrix.clearScreen();
     delay(500);
-    matrix.displayText("Esp32", 23, 41, 2, 0, 255, 0); // Zielony tekst
+    matrix.displayText("Esp32", 23, 41, 2, 0, 255, 0, "fonts/ComicNeue-Bold-48.bdf"); // Zielony tekst
     commandsSent = true;
     delay(5000);
   }
