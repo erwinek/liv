@@ -26,15 +26,20 @@ void setup() {
   delay(500);
 }
 
+uint16_t counter = 0;
+
 void loop() {
   // Co 5 sekund wyślij ponownie GIF + tekst, aby viewer mógł je przechwycić po restarcie
   unsigned long now = millis();
+  if(counter<999) counter++;
+  else counter = 111;
+  
+  // Wyświetl tekst z element_id=1 - będzie automatycznie aktualizowany bez migotania
+  matrix.displayText(String(counter).c_str(), 60, 64, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 1);
+  
   if (!commandsSent || now - lastSendMs > 5000) {
-    //matrix.clearScreen();
-    delay(50);
-    matrix.loadGif("anim/2.gif", 0, 0, 64, 64);
-    delay(100);
-    matrix.displayText("Esp32", 23, 41, 2, 0, 255, 0, "fonts/ComicNeue-Bold-48.bdf");
+    // Załaduj GIF z element_id=0
+    matrix.loadGif("anim/1.gif", 0, 0, 192, 192, 0);
     commandsSent = true;
     lastSendMs = now;
   }

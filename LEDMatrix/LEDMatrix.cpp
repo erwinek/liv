@@ -22,6 +22,11 @@ void LEDMatrix::clearScreen() {
     sendPacket(CMD_CLEAR_SCREEN, nullptr, 0);
 }
 
+// Wyczyść tylko tekst (pozostaw GIFy)
+void LEDMatrix::clearText() {
+    sendPacket(CMD_CLEAR_TEXT, nullptr, 0);
+}
+
 // Ustaw jasność
 void LEDMatrix::setBrightness(uint8_t brightness) {
     if (brightness > 100) brightness = 100;
@@ -35,13 +40,13 @@ void LEDMatrix::setBrightness(uint8_t brightness) {
 // Wyświetl tekst
 void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y, 
                             uint8_t fontSize, uint8_t r, uint8_t g, uint8_t b,
-                            const char* fontName) {
+                            const char* fontName, uint8_t elementId) {
     // Ograniczenie długości tekstu
     uint8_t textLen = strlen(text);
     if (textLen > 31) textLen = 31;
     
     // TextCommand structure (zgodna z led-image-viewer):
-    // screen_id (1) + command (1) + x_pos (2) + y_pos (2) + font_size (1) +
+    // screen_id (1) + command (1) + element_id (1) + x_pos (2) + y_pos (2) +
     // color_r (1) + color_g (1) + color_b (1) + text_length (1) + 
     // text (32) + font_name (32) = 75 bytes
     uint8_t payload[75];
@@ -53,16 +58,16 @@ void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y,
     // command  
     payload[1] = CMD_DISPLAY_TEXT;
     
+    // element_id
+    payload[2] = elementId;
+    
     // X Position (little-endian)
-    payload[2] = x & 0xFF;
-    payload[3] = (x >> 8) & 0xFF;
+    payload[3] = x & 0xFF;
+    payload[4] = (x >> 8) & 0xFF;
     
     // Y Position (little-endian)
-    payload[4] = y & 0xFF;
-    payload[5] = (y >> 8) & 0xFF;
-    
-    // Font Size
-    payload[6] = fontSize;
+    payload[5] = y & 0xFF;
+    payload[6] = (y >> 8) & 0xFF;
     
     // Kolor RGB
     payload[7] = r;
@@ -85,11 +90,11 @@ void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y,
 
 // Załaduj GIF
 void LEDMatrix::loadGif(const char* filename, uint16_t x, uint16_t y, 
-                        uint16_t width, uint16_t height) {
+                        uint16_t width, uint16_t height, uint8_t elementId) {
     // GifCommand structure (zgodna z led-image-viewer):
-    // screen_id (1) + command (1) + x (2) + y (2) + width (2) + height (2) + filename (64) = 74 bytes
-    uint8_t payload[74];
-    memset(payload, 0, 74);
+    // screen_id (1) + command (1) + element_id (1) + x (2) + y (2) + width (2) + height (2) + filename (64) = 75 bytes
+    uint8_t payload[75];
+    memset(payload, 0, 75);
     
     // screen_id
     payload[0] = _screenId;
@@ -97,26 +102,29 @@ void LEDMatrix::loadGif(const char* filename, uint16_t x, uint16_t y,
     // command
     payload[1] = CMD_LOAD_GIF;
     
+    // element_id
+    payload[2] = elementId;
+    
     // X Position (little-endian)
-    payload[2] = x & 0xFF;
-    payload[3] = (x >> 8) & 0xFF;
+    payload[3] = x & 0xFF;
+    payload[4] = (x >> 8) & 0xFF;
     
     // Y Position (little-endian)
-    payload[4] = y & 0xFF;
-    payload[5] = (y >> 8) & 0xFF;
+    payload[5] = y & 0xFF;
+    payload[6] = (y >> 8) & 0xFF;
     
     // Width (little-endian)
-    payload[6] = width & 0xFF;
-    payload[7] = (width >> 8) & 0xFF;
+    payload[7] = width & 0xFF;
+    payload[8] = (width >> 8) & 0xFF;
     
     // Height (little-endian)
-    payload[8] = height & 0xFF;
-    payload[9] = (height >> 8) & 0xFF;
+    payload[9] = height & 0xFF;
+    payload[10] = (height >> 8) & 0xFF;
     
     // Kopiuj nazwę pliku (64 bytes)
-    strncpy((char*)&payload[10], filename, 63);
+    strncpy((char*)&payload[11], filename, 63);
     
-    sendPacket(CMD_LOAD_GIF, payload, 74);
+    sendPacket(CMD_LOAD_GIF, payload, 75);
 }
 
 // Ustaw ID ekranu

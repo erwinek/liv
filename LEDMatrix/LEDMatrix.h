@@ -26,6 +26,7 @@
 #define CMD_CLEAR_SCREEN 0x03
 #define CMD_SET_BRIGHTNESS 0x04
 #define CMD_GET_STATUS 0x05
+#define CMD_CLEAR_TEXT 0x06
 
 class LEDMatrix {
 public:
@@ -37,17 +38,18 @@ public:
     
     // Podstawowe funkcje
     void clearScreen();
+    void clearText();  // Clear only text elements, keep GIFs
     void setBrightness(uint8_t brightness);
     
     // Wyświetlanie tekstu
-    void displayText(const char* text, uint16_t x = 0, uint16_t y = 0, 
-                     uint8_t fontSize = 2, 
-                     uint8_t r = 255, uint8_t g = 255, uint8_t b = 255,
-                     const char* fontName = "");
+    void displayText(const char* text, uint16_t x, uint16_t y, 
+                     uint8_t fontSize, 
+                     uint8_t r, uint8_t g, uint8_t b,
+                     const char* fontName, uint8_t elementId);
     
     // Ładowanie GIF
-    void loadGif(const char* filename, uint16_t x = 0, uint16_t y = 0, 
-                 uint16_t width = 96, uint16_t height = 96);
+    void loadGif(const char* filename, uint16_t x, uint16_t y, 
+                 uint16_t width, uint16_t height, uint8_t elementId);
     
     // Funkcje pomocnicze
     void setScreenId(uint8_t screenId);
