@@ -122,10 +122,12 @@ void SerialProtocol::sendResponse(uint8_t screen_id, ResponseCode code, const ui
     packet.sof = PROTOCOL_SOF;
     packet.screen_id = screen_id;
     packet.command = CMD_RESPONSE;
-    packet.payload_length = sizeof(Response) - sizeof(ProtocolPacket) + data_len;
+    // Response header is 4 bytes (screen_id, command, response_code, data_length) + actual data
+    packet.payload_length = 4 + data_len;
     packet.eof = PROTOCOL_EOF;
     
-    memcpy(packet.payload, &response, sizeof(Response));
+    // Copy only the actual response size to avoid buffer overflow
+    memcpy(packet.payload, &response, 4 + data_len);
     packet.checksum = calculateChecksum(packet.payload, packet.payload_length);
     
     write(serial_fd, &packet, sizeof(ProtocolPacket));
@@ -202,11 +204,8 @@ bool SerialProtocol::validatePacket(const ProtocolPacket* packet) {
         return false;
     }
     
-    // Check payload length
-    if (packet->payload_length > PROTOCOL_MAX_PAYLOAD) {
-        std::cout << "Payload length validation failed: " << (int)packet->payload_length << " > " << PROTOCOL_MAX_PAYLOAD << std::endl;
-        return false;
-    }
+    // Note: payload_length is uint8_t so it's always <= 255, which is less than PROTOCOL_MAX_PAYLOAD (256)
+    // No need to check upper bound
     
     // Verify checksum
     uint8_t calculated_checksum = calculateChecksum(packet->payload, packet->payload_length);
@@ -276,64 +275,115 @@ void SerialProtocol::parsePacket(const ProtocolPacket* packet) {
 void SerialProtocol::addToBuffer(uint8_t byte) {
     rx_buffer.push_back(byte);
     
-    // Keep buffer size reasonable
-    if (rx_buffer.size() > 1024) {
-        rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + 512);
+    // Keep buffer size reasonable - limit to 2x max packet size (262 bytes)
+    // This helps with finding SOF more reliably
+    if (rx_buffer.size() > 512) {
+        std::cout << "Buffer overflow! Removing 256 bytes and flushing UART" << std::endl;
+        rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + 256);
+        // Buffer overflow suggests ESP32 restart or heavy corruption
+        flushUartBuffers();
+    }
+}
+
+void SerialProtocol::flushUartBuffers() {
+    if (serial_fd >= 0) {
+        tcflush(serial_fd, TCIOFLUSH);
+        std::cout << "UART buffers flushed (ESP32 restart recovery)" << std::endl;
     }
 }
 
 void SerialProtocol::processBuffer() {
-    // Look for complete packets
-    for (size_t i = 0; i < rx_buffer.size(); i++) {
-        if (rx_buffer[i] == PROTOCOL_SOF) {
-            std::cout << "Found SOF at position " << i << std::endl;
-            
-            // Check if we have enough data for packet header (SOF + screen_id + command + payload_length)
-            if (i + 4 <= rx_buffer.size()) {
-                uint8_t screen_id = rx_buffer[i + 1];
-                uint8_t command = rx_buffer[i + 2];
-                uint8_t payload_length = rx_buffer[i + 3];
-                
-                std::cout << "Packet header: screen_id=" << (int)screen_id 
-                          << " command=" << (int)command 
-                          << " payload_length=" << (int)payload_length << std::endl;
-                
-                // Calculate total packet size: SOF + screen_id + command + payload_length + payload + checksum + EOF
-                size_t total_packet_size = 4 + payload_length + 2; // header + payload + checksum + EOF
-                
-                if (i + total_packet_size <= rx_buffer.size()) {
-                    // Check EOF at the calculated position
-                    size_t eof_position = i + total_packet_size - 1;
-                    if (rx_buffer[eof_position] == PROTOCOL_EOF) {
-                        std::cout << "Complete packet found, parsing..." << std::endl;
-                        
-                        // Create a temporary ProtocolPacket for parsing
-                        ProtocolPacket packet;
-                        packet.sof = rx_buffer[i];
-                        packet.screen_id = rx_buffer[i + 1];
-                        packet.command = rx_buffer[i + 2];
-                        packet.payload_length = rx_buffer[i + 3];
-                        
-                        // Copy payload
-                        memcpy(packet.payload, &rx_buffer[i + 4], payload_length);
-                        
-                        // Set checksum and EOF
-                        packet.checksum = rx_buffer[eof_position - 1];
-                        packet.eof = rx_buffer[eof_position];
-                        
-                        parsePacket(&packet);
-                        
-                        // Remove processed packet from buffer
-                        rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + total_packet_size);
-                        i = 0; // Restart search
-                    } else {
-                        std::cout << "EOF mismatch: expected 0x55, got 0x" << std::hex << (int)rx_buffer[eof_position] << std::dec << " at position " << eof_position << std::endl;
-                    }
-                } else {
-                    std::cout << "Not enough data for complete packet (need " << total_packet_size << " bytes)" << std::endl;
-                }
+    // Aggressive garbage removal for better synchronization
+    while (!rx_buffer.empty()) {
+        // Find first SOF marker
+        size_t sof_position = rx_buffer.size();
+        for (size_t i = 0; i < rx_buffer.size(); i++) {
+            if (rx_buffer[i] == PROTOCOL_SOF) {
+                sof_position = i;
+                break;
             }
         }
+        
+        // If no SOF found, buffer contains only garbage - clear it all
+        // Also flush UART buffers to remove any remaining garbage from ESP32 restart
+        if (sof_position == rx_buffer.size()) {
+            std::cout << "No SOF found in buffer, clearing " << rx_buffer.size() << " bytes of garbage" << std::endl;
+            rx_buffer.clear();
+            flushUartBuffers();  // Clear system UART buffers too!
+            return;
+        }
+        
+        // Remove any garbage before SOF
+        if (sof_position > 0) {
+            std::cout << "Removing " << sof_position << " bytes of garbage before SOF" << std::endl;
+            rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + sof_position);
+            // If we removed a lot of garbage (>100 bytes), flush UART buffers too
+            // This helps recovery after ESP32 restart
+            if (sof_position > 100) {
+                flushUartBuffers();
+            }
+        }
+        
+        // Now SOF is at position 0
+        std::cout << "Found SOF at position 0" << std::endl;
+        
+        // Check if we have enough data for packet header (SOF + screen_id + command + payload_length)
+        if (rx_buffer.size() < 4) {
+            std::cout << "Not enough data for header yet (have " << rx_buffer.size() << " bytes)" << std::endl;
+            return; // Wait for more data
+        }
+        
+        uint8_t screen_id = rx_buffer[1];
+        uint8_t command = rx_buffer[2];
+        uint8_t payload_length = rx_buffer[3];
+        
+        std::cout << "Packet header: screen_id=" << (int)screen_id 
+                  << " command=" << (int)command 
+                  << " payload_length=" << (int)payload_length << std::endl;
+        
+        // Note: payload_length is uint8_t (0-255), so max packet size is 261 bytes
+        // Calculate total packet size: SOF + screen_id + command + payload_length + payload + checksum + EOF
+        size_t total_packet_size = 4 + payload_length + 2; // header + payload + checksum + EOF
+        
+        // Check if we have complete packet
+        if (rx_buffer.size() < total_packet_size) {
+            std::cout << "Not enough data for complete packet (need " << total_packet_size << " bytes, have " << rx_buffer.size() << ")" << std::endl;
+            return; // Wait for more data
+        }
+        
+        // Check EOF at the calculated position
+        size_t eof_position = total_packet_size - 1;
+        if (rx_buffer[eof_position] != PROTOCOL_EOF) {
+            std::cout << "EOF mismatch: expected 0x55, got 0x" << std::hex << (int)rx_buffer[eof_position] << std::dec 
+                      << " - this SOF is false, removing it" << std::endl;
+            // This SOF was false positive, remove it and continue searching
+            rx_buffer.erase(rx_buffer.begin());
+            continue;
+        }
+        
+        std::cout << "Complete valid packet found, parsing..." << std::endl;
+        
+        // Create a temporary ProtocolPacket for parsing
+        ProtocolPacket packet;
+        packet.sof = rx_buffer[0];
+        packet.screen_id = rx_buffer[1];
+        packet.command = rx_buffer[2];
+        packet.payload_length = rx_buffer[3];
+        
+        // Copy payload
+        memcpy(packet.payload, &rx_buffer[4], payload_length);
+        
+        // Set checksum and EOF
+        packet.checksum = rx_buffer[eof_position - 1];
+        packet.eof = rx_buffer[eof_position];
+        
+        parsePacket(&packet);
+        
+        // Remove processed packet from buffer
+        rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + total_packet_size);
+        std::cout << "Packet processed and removed, buffer now has " << rx_buffer.size() << " bytes" << std::endl;
+        
+        // Continue processing if there's more data
     }
 }
 

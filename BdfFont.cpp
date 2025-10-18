@@ -129,7 +129,7 @@ std::vector<uint8_t> BdfFont::parseBitmap(std::ifstream& file, int width, int he
             
             // Convert hex string to bytes
             for (int byte = 0; byte < bytes_per_row; byte++) {
-                if (byte * 2 + 1 < hex_str.length()) {
+                if (static_cast<size_t>(byte * 2 + 1) < hex_str.length()) {
                     std::string byte_str = hex_str.substr(byte * 2, 2);
                     uint8_t byte_val = static_cast<uint8_t>(std::stoul(byte_str, nullptr, 16));
                     bitmap.push_back(byte_val);

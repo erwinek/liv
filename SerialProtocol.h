@@ -141,6 +141,7 @@ private:
     void parsePacket(const ProtocolPacket* packet);
     void addToBuffer(uint8_t byte);
     void processBuffer();
+    void flushUartBuffers();  // Flush system UART buffers
     
     // Command parsing
     void* parseGifCommand(const uint8_t* payload, uint8_t length);

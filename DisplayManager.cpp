@@ -237,7 +237,7 @@ void DisplayManager::updateDisplay() {
             has_active_elements = true;
             // Check if this is animated content (GIF or scrolling text)
             if (element.type == DisplayElement::GIF || 
-                (element.type == DisplayElement::TEXT && element.text.length() * element.font_size > SCREEN_WIDTH - element.x)) {
+                (element.type == DisplayElement::TEXT && static_cast<int>(element.text.length() * element.font_size) > SCREEN_WIDTH - element.x)) {
                 has_animated_content = true;
             }
         }
@@ -610,7 +610,7 @@ void DisplayManager::updateTextElement(DisplayElement& element) {
     uint64_t current_time = getCurrentTimeUs();
     
     // Simple scrolling for long text
-    if (element.text.length() * element.font_size > SCREEN_WIDTH - element.x) {
+    if (static_cast<int>(element.text.length() * element.font_size) > SCREEN_WIDTH - element.x) {
         if (current_time - element.last_scroll_time >= element.scroll_delay_us) {
             element.scroll_offset = (element.scroll_offset + 1) % 
                                   (element.text.length() * element.font_size);
@@ -670,7 +670,7 @@ void DisplayManager::drawChar(char c, uint16_t x, uint16_t y, uint8_t font_size,
             int byte_index = row * bytes_per_row + col / 8;
             int bit_index = 7 - (col % 8); // BDF uses MSB first
             
-            if (byte_index < bdf_char->bitmap.size()) {
+            if (byte_index < static_cast<int>(bdf_char->bitmap.size())) {
                 uint8_t byte_val = bdf_char->bitmap[byte_index];
                 if (byte_val & (1 << bit_index)) {
                     // Draw pixel scaled by font_size
