@@ -116,3 +116,5 @@ To pomaga przy inicjalizacji, czyści ewentualne śmieci z bufora.
 ✅ Zaimplementowane i przetestowane kompilacją  
 ⏳ Do przetestowania w runtime przez użytkownika
 
+
+

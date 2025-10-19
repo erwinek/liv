@@ -45,7 +45,8 @@ public:
     void displayText(const char* text, uint16_t x, uint16_t y, 
                      uint8_t fontSize, 
                      uint8_t r, uint8_t g, uint8_t b,
-                     const char* fontName, uint8_t elementId);
+                     const char* fontName, uint8_t elementId,
+                     uint16_t blinkIntervalMs = 0);
     
     // Ładowanie GIF
     void loadGif(const char* filename, uint16_t x, uint16_t y, 

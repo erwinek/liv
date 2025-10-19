@@ -1,0 +1,38 @@
+#######################################
+# Syntax Coloring Map For LEDMatrix
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+LEDMatrix	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+displayText	KEYWORD2
+loadGif	KEYWORD2
+clearScreen	KEYWORD2
+clearText	KEYWORD2
+setBrightness	KEYWORD2
+setScreenId	KEYWORD2
+getScreenId	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+PROTOCOL_SOF	LITERAL1
+PROTOCOL_EOF	LITERAL1
+PROTOCOL_MAX_PAYLOAD	LITERAL1
+PROTOCOL_SCREEN_ID	LITERAL1
+CMD_LOAD_GIF	LITERAL1
+CMD_DISPLAY_TEXT	LITERAL1
+CMD_CLEAR_SCREEN	LITERAL1
+CMD_SET_BRIGHTNESS	LITERAL1
+CMD_GET_STATUS	LITERAL1
+CMD_CLEAR_TEXT	LITERAL1
+

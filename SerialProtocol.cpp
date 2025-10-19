@@ -133,7 +133,7 @@ void SerialProtocol::processData() {
     // Reduce debug output during normal operation (only show non-zero bytes or when buffer is building)
     while (bytes_read > 0) {
         if (byte != 0 || rx_buffer.empty()) {
-            std::cout << "Received byte: 0x" << std::hex << (int)byte << std::dec << std::endl;
+            //std::cout << "Received byte: 0x" << std::hex << (int)byte << std::dec << std::endl;
         }
         addToBuffer(byte);
         bytes_read = read(serial_fd, &byte, 1);

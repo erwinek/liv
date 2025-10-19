@@ -57,6 +57,7 @@ typedef struct {
     uint8_t text_length;   // Length of text
     char text[PROTOCOL_MAX_TEXT_LENGTH];
     char font_name[32];    // Font file name (e.g., "ComicNeue-Regular-20.bdf")
+    uint16_t blink_interval_ms;  // Blink interval in ms (0=no blink, 1-1000=blink frequency)
 } __attribute__((packed)) TextCommand;
 
 // Clear screen command structure

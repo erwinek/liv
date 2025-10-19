@@ -1,0 +1,80 @@
+========================================
+Direct ioctl() RTS Test
+Device: /dev/ttyUSB0
+========================================
+
+[1] Opening device...
+  Device opened successfully (fd=3)
+
+[2] Configuring port (NO CLOCAL)...
+  CLOCAL: DISABLED (GOOD: should be DISABLED)
+  CRTSCTS: DISABLED
+
+[3] Reading initial modem status...
+  Modem status: 0x0006
+    TIOCM_RTS  (0x004): SET (HIGH)
+    TIOCM_DTR  (0x002): SET (HIGH)
+    TIOCM_CTS  (0x020): clear
+    TIOCM_DSR  (0x100): clear
+    TIOCM_CD   (0x040): clear
+
+[4] Setting RTS=LOW...
+  Modem status: 0x0002
+    TIOCM_RTS  (0x004): clear (LOW)
+    TIOCM_DTR  (0x002): SET (HIGH)
+    TIOCM_CTS  (0x020): clear
+    TIOCM_DSR  (0x100): clear
+    TIOCM_CD   (0x040): clear
+  ✅ SUCCESS: RTS is LOW
+  → GPIO0 should be LOW now (~0V)
+
+[5] Setting RTS=HIGH...
+  Modem status: 0x0006
+    TIOCM_RTS  (0x004): SET (HIGH)
+    TIOCM_DTR  (0x002): SET (HIGH)
+    TIOCM_CTS  (0x020): clear
+    TIOCM_DSR  (0x100): clear
+    TIOCM_CD   (0x040): clear
+  ✅ SUCCESS: RTS is HIGH
+  → GPIO0 should be HIGH now (~3.3V)
+
+[6] Toggling RTS 5 times...
+  1. RTS=LOW → RTS=HIGH
+  2. RTS=LOW → RTS=HIGH
+  3. RTS=LOW → RTS=HIGH
+  4. RTS=LOW → RTS=HIGH
+  5. RTS=LOW → RTS=HIGH
+
+[7] Setting final state: DTR=HIGH, RTS=HIGH
+  Modem status: 0x0006
+    TIOCM_RTS  (0x004): SET (HIGH)
+    TIOCM_DTR  (0x002): SET (HIGH)
+    TIOCM_CTS  (0x020): clear
+    TIOCM_DSR  (0x100): clear
+    TIOCM_CD   (0x040): clear
+
+========================================
+MEASUREMENT TIME!
+========================================
+Port is being held open for 10 seconds.
+→ Measure GPIO0 with multimeter NOW!
+   Expected: ~3.3V (if DIRECT logic)
+   Or: ~0V (if INVERTED logic)
+
+  10 seconds remaining...   9 seconds remaining...   8 seconds remaining...   7 seconds remaining...   6 seconds remaining...   5 seconds remaining...   4 seconds remaining...   3 seconds remaining...   2 seconds remaining...   1 seconds remaining...
+
+[8] Closing port...
+  Port closed (DTR/RTS will reset to LOW)
+
+========================================
+Results:
+========================================
+If ioctl() showed SUCCESS but GPIO0 didn't change:
+  → Check physical connection RTS pin to GPIO0
+  → Check if USB-Serial converter has RTS output
+  → Check for pull-down resistors on GPIO0
+
+If ioctl() FAILED:
+  → Driver or hardware issue
+  → Try different USB port or converter
+========================================

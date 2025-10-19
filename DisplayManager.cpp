@@ -235,9 +235,10 @@ void DisplayManager::updateDisplay() {
     for (const auto& element : elements) {
         if (element.active) {
             has_active_elements = true;
-            // Check if this is animated content (GIF or scrolling text)
+            // Check if this is animated content (GIF, scrolling text, or blinking text)
             if (element.type == DisplayElement::GIF || 
-                (element.type == DisplayElement::TEXT && static_cast<int>(element.text.length() * element.font_size) > SCREEN_WIDTH - element.x)) {
+                (element.type == DisplayElement::TEXT && static_cast<int>(element.text.length() * element.font_size) > SCREEN_WIDTH - element.x) ||
+                (element.type == DisplayElement::TEXT && element.blink_interval_ms > 0)) {
                 has_animated_content = true;
             }
         }
@@ -391,7 +392,8 @@ bool DisplayManager::addGifElement(const std::string& filename, uint16_t x, uint
 }
 
 bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_t y,
-                                   uint8_t font_size, uint8_t color_index, const std::string& font_name, uint8_t element_id) {
+                                   uint8_t font_size, uint8_t color_index, const std::string& font_name, 
+                                   uint8_t element_id, uint16_t blink_interval_ms) {
     // Check if element with same ID already exists
     for (auto& element : elements) {
         if (element.element_id == element_id) {
@@ -403,8 +405,12 @@ bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_
             element.font_name = font_name;
             element.width = font_size * text.length();
             element.height = font_size * 8;
+            element.blink_interval_ms = blink_interval_ms;
+            element.blink_visible = true;
+            element.last_blink_time = getCurrentTimeUs();
             display_dirty = true;
-            std::cout << "Element ID=" << (int)element_id << " updated: '" << text << "'" << std::endl;
+            std::cout << "Element ID=" << (int)element_id << " updated: '" << text << "'"
+                      << " blink=" << blink_interval_ms << "ms" << std::endl;
             return true;
         }
     }
@@ -430,10 +436,14 @@ bool DisplayManager::addTextElement(const std::string& text, uint16_t x, uint16_
     element.color_index = color_index;
     element.scroll_offset = 0;
     element.last_scroll_time = getCurrentTimeUs();
+    element.blink_interval_ms = blink_interval_ms;
+    element.blink_visible = true;
+    element.last_blink_time = getCurrentTimeUs();
     element.active = true;
     
     elements.push_back(element);
-    std::cout << "Element ID=" << (int)element_id << " added. Total elements: " << elements.size() << std::endl;
+    std::cout << "Element ID=" << (int)element_id << " added. Total elements: " << elements.size()
+              << " blink=" << blink_interval_ms << "ms" << std::endl;
     display_dirty = true; // Mark display as needing update
     return true;
 }
@@ -496,6 +506,11 @@ void DisplayManager::drawGifElement(const DisplayElement& element) {
 
 void DisplayManager::drawTextElement(const DisplayElement& element) {
     if (element.text.empty()) return;
+    
+    // Check blink visibility - if blinking is enabled and text is hidden, don't draw
+    if (element.blink_interval_ms > 0 && !element.blink_visible) {
+        return; // Text is currently hidden due to blinking
+    }
     
     // Load font if specified and different from current
     if (!element.font_name.empty() && element.font_name != "fonts/5x7.bdf") {
@@ -608,6 +623,17 @@ void DisplayManager::updateGifElement(DisplayElement& element) {
 
 void DisplayManager::updateTextElement(DisplayElement& element) {
     uint64_t current_time = getCurrentTimeUs();
+    
+    // Handle text blinking
+    if (element.blink_interval_ms > 0) {
+        uint64_t blink_interval_us = element.blink_interval_ms * 1000;  // Convert ms to us
+        if (current_time - element.last_blink_time >= blink_interval_us) {
+            element.blink_visible = !element.blink_visible;  // Toggle visibility
+            element.last_blink_time = current_time;
+            // Mark display as dirty to force redraw
+            display_dirty = true;
+        }
+    }
     
     // Simple scrolling for long text
     if (static_cast<int>(element.text.length() * element.font_size) > SCREEN_WIDTH - element.x) {
@@ -836,13 +862,15 @@ void DisplayManager::processTextCommand(TextCommand* cmd) {
     }
     
     std::cout << "Processing TEXT command: ID=" << (int)cmd->element_id << " '" << text 
-              << "' with font: " << font_name << " (checksum=" << checksum << ")" << std::endl;
+              << "' with font: " << font_name << " blink=" << cmd->blink_interval_ms 
+              << "ms (checksum=" << checksum << ")" << std::endl;
     
     // Convert RGB to 8-bit color index using fast lookup
     uint8_t color_index = ColorPalette::rgbTo8bitFast(cmd->color_r, cmd->color_g, cmd->color_b);
     
     // Use font_size = 1 (no scaling, use native BDF font size)
-    bool success = addTextElement(text, cmd->x_pos, cmd->y_pos, 1, color_index, font_name, cmd->element_id);
+    bool success = addTextElement(text, cmd->x_pos, cmd->y_pos, 1, color_index, font_name, 
+                                  cmd->element_id, cmd->blink_interval_ms);
     
     if (success) {
         // Update cache with new checksum

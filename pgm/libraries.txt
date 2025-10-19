@@ -1,0 +1,19 @@
+Użycie biblioteki WiFi w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\WiFi 
+Użycie biblioteki ESPmDNS w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\ESPmDNS 
+Użycie biblioteki ArduinoOTA w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\ArduinoOTA 
+Użycie biblioteki Update w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\Update 
+Użycie biblioteki PCF8574 library w wersji 2.3.5 z folderu: C:\Users\erwin\OneDrive\Dokumenty\Arduino\libraries\PCF8574_library 
+Użycie biblioteki Wire w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\Wire 
+Użycie biblioteki ESP32-audioI2S-master w wersji 2.0.0 z folderu: C:\Users\erwin\OneDrive\Dokumenty\Arduino\libraries\ESP32-audioI2S-master 
+Użycie biblioteki SPI w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\SPI 
+Użycie biblioteki WiFiClientSecure w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\WiFiClientSecure 
+Użycie biblioteki SD w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\SD 
+Użycie biblioteki FS w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\FS 
+Użycie biblioteki SD_MMC w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\SD_MMC 
+Użycie biblioteki SPIFFS w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\SPIFFS 
+Użycie biblioteki FFat w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\FFat 
+Użycie biblioteki FastLED w wersji 3.7.8 z folderu: C:\Users\erwin\OneDrive\Dokumenty\Arduino\libraries\FastLED 
+Użycie biblioteki I2C_EEPROM w wersji 1.8.0 z folderu: C:\Users\erwin\OneDrive\Dokumenty\Arduino\libraries\I2C_EEPROM 
+Użycie biblioteki HTTPClient w wersji 2.0.0 z folderu: C:\Users\erwin\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.11\libraries\HTTPClient 
+Użycie biblioteki SimpleSyslog w wersji 0.1.1 z folderu: C:\Users\erwin\OneDrive\Dokumenty\Arduino\libraries\SimpleSyslog 
+Użycie biblioteki LiquidCrystal I2C w wersji 1.1.1 z folderu: C:\Users\erwin\OneDrive\Dokumenty\Arduino\libraries\LiquidCrystal_I2C 

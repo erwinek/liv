@@ -40,17 +40,21 @@ void LEDMatrix::setBrightness(uint8_t brightness) {
 // Wyświetl tekst
 void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y, 
                             uint8_t fontSize, uint8_t r, uint8_t g, uint8_t b,
-                            const char* fontName, uint8_t elementId) {
+                            const char* fontName, uint8_t elementId,
+                            uint16_t blinkIntervalMs) {
     // Ograniczenie długości tekstu
     uint8_t textLen = strlen(text);
     if (textLen > 31) textLen = 31;
     
+    // Ograniczenie częstotliwości migania (0-1000 ms)
+    if (blinkIntervalMs > 1000) blinkIntervalMs = 1000;
+    
     // TextCommand structure (zgodna z led-image-viewer):
     // screen_id (1) + command (1) + element_id (1) + x_pos (2) + y_pos (2) +
     // color_r (1) + color_g (1) + color_b (1) + text_length (1) + 
-    // text (32) + font_name (32) = 75 bytes
-    uint8_t payload[75];
-    memset(payload, 0, 75);
+    // text (32) + font_name (32) + blink_interval_ms (2) = 77 bytes
+    uint8_t payload[77];
+    memset(payload, 0, 77);
     
     // screen_id
     payload[0] = _screenId;
@@ -85,7 +89,11 @@ void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y,
         strncpy((char*)&payload[43], fontName, 31);
     }
     
-    sendPacket(CMD_DISPLAY_TEXT, payload, 75);
+    // Blink interval (little-endian, 2 bytes) - na pozycji 75-76
+    payload[75] = blinkIntervalMs & 0xFF;
+    payload[76] = (blinkIntervalMs >> 8) & 0xFF;
+    
+    sendPacket(CMD_DISPLAY_TEXT, payload, 77);
 }
 
 // Załaduj GIF

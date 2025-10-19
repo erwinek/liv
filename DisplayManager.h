@@ -56,10 +56,16 @@ struct DisplayElement {
     uint64_t scroll_delay_us;
     uint64_t last_scroll_time;
     
+    // Text blinking
+    uint16_t blink_interval_ms;  // Blink interval in ms (0=no blink)
+    bool blink_visible;          // Current visibility state
+    uint64_t last_blink_time;    // Last blink toggle time
+    
     DisplayElement() : type(GIF), element_id(0), x(0), y(0), width(0), height(0), active(false),
                       current_frame(0), last_frame_time(0), frame_delay_us(100000),
                       font_size(1), color_index(255), // White color index
-                      scroll_offset(0), scroll_delay_us(1000000), last_scroll_time(0) {}
+                      scroll_offset(0), scroll_delay_us(1000000), last_scroll_time(0),
+                      blink_interval_ms(0), blink_visible(true), last_blink_time(0) {}
 };
 
 // Simple command cache for deduplication
@@ -104,7 +110,8 @@ public:
     
     // Add text element
     bool addTextElement(const std::string& text, uint16_t x, uint16_t y,
-                       uint8_t font_size, uint8_t color_index, const std::string& font_name, uint8_t element_id);
+                       uint8_t font_size, uint8_t color_index, const std::string& font_name, 
+                       uint8_t element_id, uint16_t blink_interval_ms = 0);
     
     // Remove element at position
     void removeElement(uint16_t x, uint16_t y);

@@ -1,274 +1,473 @@
-# LEDMatrix Library
+# LEDMatrix - Biblioteka Arduino dla ESP32
 
-Biblioteka Arduino do sterowania matrycą LED z ESP32 za pomocą protokołu komunikacji szeregowej.
+Biblioteka do sterowania matrycą LED za pomocą ESP32 i Raspberry Pi przez komunikację szeregową.
 
-## Opis
+## 📦 Instalacja
 
-Biblioteka LEDMatrix umożliwia łatwą komunikację z matrycą LED poprzez port szeregowy ESP32. Obsługuje następujące funkcje:
+### Arduino IDE
 
-- Wyświetlanie tekstu z konfigurowalnymi parametrami (pozycja, rozmiar czcionki, kolor)
-- Ładowanie i odtwarzanie animacji GIF
-- Czyszczenie ekranu
-- Kontrola jasności
+1. Skopiuj folder `LEDMatrix` do katalogu bibliotek Arduino:
+   - Windows: `Documents\Arduino\libraries\`
+   - Linux: `~/Arduino/libraries/`
+   - macOS: `~/Documents/Arduino/libraries/`
 
-## Instalacja
+2. Zrestartuj Arduino IDE
 
-### Metoda 1: Instalacja ręczna
+### PlatformIO
 
-1. Pobierz bibliotekę i rozpakuj do folderu `libraries` w Twoim folderze Arduino:
-   ```
-   Arduino/libraries/LEDMatrix/
-   ```
+Dodaj do `platformio.ini`:
+```ini
+lib_deps = 
+    file://LEDMatrix
+```
 
-2. Uruchom ponownie Arduino IDE
-
-### Metoda 2: Instalacja jako biblioteka lokalna
-
-1. Skopiuj folder `LEDMatrix` do Twojego projektu
-2. W Arduino IDE: Sketch → Include Library → Add .ZIP Library
-
-## Szybki start
+## 🚀 Szybki start
 
 ```cpp
-#include "LEDMatrix.h"
+#include <LEDMatrix.h>
 
-// Utwórz obiekt matrycy (używając Serial1)
-LEDMatrix matrix(Serial1, 1); // ID ekranu = 1
+LEDMatrix matrix(Serial);  // Użyj Serial, Serial1, lub Serial2
 
 void setup() {
-    // Inicjalizacja portu szeregowego
-    matrix.begin(1000000); // Baudrate: 1 Mbps
-    
-    // Wyczyść ekran
-    matrix.clearScreen();
+    // Inicjalizacja komunikacji szeregowej (1 Mbps)
+    matrix.begin(1000000);
     
     // Wyświetl tekst
-    matrix.displayText("HELLO", 0, 0, 2, 255, 255, 0); // Żółty tekst
+    matrix.displayText("Hello World", 0, 0, 
+                      16,                          // fontSize (obecnie nieużywany)
+                      255, 255, 255,               // RGB - biały
+                      "ComicNeue-Regular-20.bdf",  // czcionka BDF
+                      1);                          // element_id
+    
+    // Załaduj animowany GIF
+    matrix.loadGif("animated.gif", 0, 20, 64, 32, 2);
 }
 
 void loop() {
-    // Twój kod
+    // Twoja logika...
 }
 ```
 
-## API
+## 📚 API Reference
 
-### Konstruktor
+### Inicjalizacja
 
-```cpp
-LEDMatrix(HardwareSerial &serial, uint8_t screenId = 1)
-```
+#### `LEDMatrix(HardwareSerial &serial, uint8_t screenId = 1)`
+Konstruktor biblioteki.
 
-- `serial` - Referencja do portu szeregowego (np. Serial1)
+**Parametry:**
+- `serial` - Port szeregowy (Serial, Serial1, Serial2)
 - `screenId` - ID ekranu (domyślnie 1)
 
-### Metody
-
-#### begin()
+**Przykład:**
 ```cpp
-void begin(uint32_t baudrate = 1000000)
+LEDMatrix matrix(Serial);     // Domyślny ID = 1
+LEDMatrix matrix(Serial2, 5); // ID = 5
 ```
-Inicjalizuje port szeregowy z określonym baudrate (domyślnie 1 Mbps).
 
-#### clearScreen()
+#### `void begin(uint32_t baudrate = 1000000)`
+Inicjalizacja portu szeregowego.
+
+**Parametry:**
+- `baudrate` - Prędkość transmisji (domyślnie 1 Mbps)
+
+**Przykład:**
 ```cpp
-void clearScreen()
+matrix.begin();          // 1 Mbps (domyślnie)
+matrix.begin(115200);    // 115200 bps
 ```
-Czyści ekran matrycy LED.
 
-#### setBrightness()
+### Wyświetlanie tekstu
+
+#### `void displayText(...)`
+Wyświetla tekst na matrycy LED.
+
 ```cpp
-void setBrightness(uint8_t brightness)
+void displayText(const char* text,           // Tekst do wyświetlenia
+                 uint16_t x, uint16_t y,     // Pozycja (x, y)
+                 uint8_t fontSize,           // Rozmiar czcionki (nieużywany)
+                 uint8_t r, uint8_t g, uint8_t b,  // Kolor RGB
+                 const char* fontName,       // Nazwa czcionki BDF
+                 uint8_t elementId,          // Unikalny ID elementu
+                 uint16_t blinkIntervalMs = 0);  // Częstotliwość migania (opcjonalny)
 ```
-Ustawia jasność ekranu (0-100).
 
-#### displayText()
-```cpp
-void displayText(const char* text, uint16_t x = 0, uint16_t y = 0, 
-                 uint8_t fontSize = 2, 
-                 uint8_t r = 255, uint8_t g = 255, uint8_t b = 255)
-```
-Wyświetla tekst na ekranie.
-
-Parametry:
+**Parametry:**
 - `text` - Tekst do wyświetlenia (max 31 znaków)
-- `x` - Pozycja X (domyślnie 0)
-- `y` - Pozycja Y (domyślnie 0)
-- `fontSize` - Rozmiar czcionki (domyślnie 2)
-- `r`, `g`, `b` - Składowe koloru RGB (0-255)
+- `x, y` - Pozycja na ekranie
+- `fontSize` - Rozmiar czcionki (obecnie nieużywany, zostaw 16)
+- `r, g, b` - Kolor RGB (0-255 każdy)
+- `fontName` - Nazwa pliku czcionki BDF (np. "ComicNeue-Regular-20.bdf")
+- `elementId` - Unikalny ID elementu (0-255), używany do aktualizacji/usuwania
+- `blinkIntervalMs` - **NOWE!** Częstotliwość migania w ms (0 = brak migania, 1-1000 = miga)
 
-#### loadGif()
+**Przykłady:**
+
 ```cpp
-void loadGif(const char* filename, uint16_t x = 0, uint16_t y = 0, 
-             uint16_t width = 96, uint16_t height = 96)
+// Tekst bez migania
+matrix.displayText("Status OK", 10, 10, 16, 0, 255, 0, 
+                  "ComicNeue-Regular-16.bdf", 1);
+
+// Tekst migający co pół sekundy (alarm)
+matrix.displayText("ALARM!", 20, 20, 16, 255, 0, 0,
+                  "ComicNeue-Regular-20.bdf", 2, 500);
+
+// Tekst migający szybko (250ms)
+matrix.displayText("WARNING", 30, 30, 16, 255, 165, 0,
+                  "ComicNeue-Regular-16.bdf", 3, 250);
 ```
-Ładuje i wyświetla animację GIF.
 
-Parametry:
-- `filename` - Nazwa pliku GIF (max 63 znaki)
-- `x`, `y` - Pozycja wyświetlania
-- `width`, `height` - Rozmiar animacji
+### Ładowanie GIF
 
-#### setScreenId()
+#### `void loadGif(...)`
+Ładuje i wyświetla animowany GIF.
+
 ```cpp
-void setScreenId(uint8_t screenId)
+void loadGif(const char* filename,          // Nazwa pliku GIF
+             uint16_t x, uint16_t y,        // Pozycja (x, y)
+             uint16_t width, uint16_t height,  // Rozmiar
+             uint8_t elementId);            // Unikalny ID elementu
 ```
-Ustawia ID ekranu.
 
-#### getScreenId()
+**Parametry:**
+- `filename` - Nazwa pliku GIF (max 63 znaki, ścieżka względna do katalogu `gifs/`)
+- `x, y` - Pozycja na ekranie
+- `width, height` - Rozmiar wyświetlanego GIF-a
+- `elementId` - Unikalny ID elementu (0-255)
+
+**Przykład:**
 ```cpp
-uint8_t getScreenId() const
+// Załaduj animowany emotikon
+matrix.loadGif("smile.gif", 0, 0, 32, 32, 10);
+
+// Załaduj większą animację
+matrix.loadGif("loading.gif", 50, 50, 64, 64, 11);
 ```
-Zwraca aktualne ID ekranu.
 
-## Przykłady
+### Sterowanie ekranem
 
-### Przykład 1: Podstawowe wyświetlanie tekstu
+#### `void clearScreen()`
+Czyści cały ekran (usuwa wszystkie elementy - tekst i GIF-y).
 
 ```cpp
-#include "LEDMatrix.h"
+matrix.clearScreen();
+```
 
-LEDMatrix matrix(Serial1);
+#### `void clearText()`
+Czyści tylko elementy tekstowe, pozostawia GIF-y.
+
+```cpp
+matrix.clearText();
+```
+
+#### `void setBrightness(uint8_t brightness)`
+Ustawia jasność ekranu.
+
+**Parametry:**
+- `brightness` - Jasność (0-100), gdzie 100 = maksymalna jasność
+
+```cpp
+matrix.setBrightness(50);   // 50% jasności
+matrix.setBrightness(100);  // 100% jasności
+```
+
+### Pomocnicze
+
+#### `void setScreenId(uint8_t screenId)`
+Zmienia ID ekranu.
+
+```cpp
+matrix.setScreenId(2);  // Zmień na ekran 2
+```
+
+#### `uint8_t getScreenId() const`
+Zwraca aktualny ID ekranu.
+
+```cpp
+uint8_t id = matrix.getScreenId();
+```
+
+## 🎨 Czcionki
+
+Biblioteka używa czcionek BDF (Bitmap Distribution Format). Dostępne czcionki w katalogu `fonts/`:
+
+- `ComicNeue-Regular-16.bdf` - 16px, styl regularny
+- `ComicNeue-Regular-20.bdf` - 20px, styl regularny
+- `ComicNeue-Bold-20.bdf` - 20px, pogrubiony
+- (i inne...)
+
+## 💡 Miganie tekstu (NOWOŚĆ v1.1.0)
+
+Biblioteka obsługuje miganie tekstu poprzez parametr `blinkIntervalMs`:
+
+```cpp
+// Tekst bez migania (domyślnie)
+matrix.displayText("Static", 0, 0, 16, 255, 255, 255, 
+                  "ComicNeue-Regular-16.bdf", 1);
+
+// Tekst migający co sekundę
+matrix.displayText("Blink 1s", 0, 20, 16, 255, 0, 0,
+                  "ComicNeue-Regular-16.bdf", 2, 1000);
+
+// Tekst migający co pół sekundy
+matrix.displayText("Blink 0.5s", 0, 40, 16, 0, 255, 0,
+                  "ComicNeue-Regular-16.bdf", 3, 500);
+
+// Szybkie miganie (250ms)
+matrix.displayText("Fast blink", 0, 60, 16, 255, 165, 0,
+                  "ComicNeue-Regular-16.bdf", 4, 250);
+```
+
+**Szczegóły:** Zobacz `BLINK_FEATURE.md` dla pełnej dokumentacji.
+
+## 📡 Protokół komunikacji
+
+### Format pakietu
+
+```
+[SOF] [SCREEN_ID] [COMMAND] [PAYLOAD_LEN] [PAYLOAD...] [CHECKSUM] [EOF]
+```
+
+- `SOF` = 0xAA (Start of Frame)
+- `EOF` = 0x55 (End of Frame)
+- `CHECKSUM` = XOR wszystkich bajtów payload
+
+### Komendy
+
+| Kod | Nazwa | Opis |
+|-----|-------|------|
+| 0x01 | LOAD_GIF | Załaduj i wyświetl GIF |
+| 0x02 | DISPLAY_TEXT | Wyświetl tekst |
+| 0x03 | CLEAR_SCREEN | Wyczyść cały ekran |
+| 0x04 | SET_BRIGHTNESS | Ustaw jasność |
+| 0x05 | GET_STATUS | Pobierz status (nieużywane) |
+| 0x06 | CLEAR_TEXT | Wyczyść tylko tekst |
+
+## 🔧 Przykłady
+
+### Przykład 1: Prosty wyświetlacz statusu
+
+```cpp
+#include <LEDMatrix.h>
+
+LEDMatrix matrix(Serial);
 
 void setup() {
     matrix.begin(1000000);
     matrix.clearScreen();
     
-    // Wyświetl tekst na żółto
-    matrix.displayText("HELLO", 0, 0, 2, 255, 255, 0);
+    // Nagłówek
+    matrix.displayText("System Status", 5, 0, 16, 255, 255, 255,
+                      "ComicNeue-Bold-20.bdf", 1);
+    
+    // Status OK
+    matrix.displayText("OK", 10, 25, 16, 0, 255, 0,
+                      "ComicNeue-Regular-20.bdf", 2);
 }
 
 void loop() {
-    // Kod
+    delay(1000);
 }
 ```
 
-### Przykład 2: Animacja kolorów
+### Przykład 2: System alarmowy
 
 ```cpp
-#include "LEDMatrix.h"
+#include <LEDMatrix.h>
 
-LEDMatrix matrix(Serial1);
-uint8_t hue = 0;
+LEDMatrix matrix(Serial);
+
+void showAlarm() {
+    matrix.clearScreen();
+    
+    // Migający alarm
+    matrix.displayText("ALARM!", 20, 20, 16, 255, 0, 0,
+                      "ComicNeue-Bold-20.bdf", 1, 500);
+    
+    // Animowany GIF ostrzeżenia
+    matrix.loadGif("warning.gif", 0, 50, 32, 32, 2);
+}
+
+void showNormal() {
+    matrix.clearScreen();
+    
+    // Normalny status (nie miga)
+    matrix.displayText("Status OK", 10, 20, 16, 0, 255, 0,
+                      "ComicNeue-Regular-20.bdf", 1);
+}
 
 void setup() {
     matrix.begin(1000000);
 }
 
 void loop() {
-    // Konwersja HSV na RGB
-    uint8_t r = 255 * sin(hue * PI / 180);
-    uint8_t g = 255 * sin((hue + 120) * PI / 180);
-    uint8_t b = 255 * sin((hue + 240) * PI / 180);
-    
-    matrix.displayText("RAINBOW", 0, 0, 2, r, g, b);
-    
-    hue = (hue + 5) % 360;
-    delay(50);
+    if (/* warunek alarmu */) {
+        showAlarm();
+    } else {
+        showNormal();
+    }
+    delay(100);
 }
 ```
 
-### Przykład 3: Ładowanie GIF
+### Przykład 3: Zegar z migającym separatorem
 
 ```cpp
-#include "LEDMatrix.h"
+#include <LEDMatrix.h>
 
-LEDMatrix matrix(Serial1);
+LEDMatrix matrix(Serial);
+
+void updateClock() {
+    // Pobierz aktualny czas (z RTC lub innego źródła)
+    int hour = 12;
+    int minute = 34;
+    int second = 56;
+    
+    char time_str[16];
+    sprintf(time_str, "%02d:%02d:%02d", hour, minute, second);
+    
+    // Wyświetl czas z migającymi dwukropkami
+    matrix.displayText(time_str, 10, 20, 16, 255, 255, 0,
+                      "ComicNeue-Regular-20.bdf", 1, 1000);
+}
 
 void setup() {
     matrix.begin(1000000);
-    matrix.setBrightness(80);
-    
-    // Załaduj animację
-    matrix.loadGif("anim/1.gif", 0, 0, 96, 96);
 }
 
 void loop() {
-    // Kod
+    updateClock();
+    delay(1000);
 }
 ```
 
-## Protokół komunikacji
+### Przykład 4: Wiele elementów z różnymi efektami
 
-Biblioteka używa następującego protokołu:
+```cpp
+#include <LEDMatrix.h>
 
-```
-[SOF][ScreenID][Command][PayloadLength][Payload][Checksum][EOF]
-```
+LEDMatrix matrix(Serial);
 
-- **SOF** (Start of Frame): 0xAA
-- **ScreenID**: ID ekranu (domyślnie 1)
-- **Command**: Typ komendy (0x01-0x05)
-- **PayloadLength**: Długość danych (0-150)
-- **Payload**: Dane komendy
-- **Checksum**: Suma kontrolna XOR payload
-- **EOF** (End of Frame): 0x55
+void setup() {
+    matrix.begin(1000000);
+    matrix.clearScreen();
+    
+    // Element 1: Nagłówek (nie miga)
+    matrix.displayText("Dashboard", 5, 0, 16, 255, 255, 255,
+                      "ComicNeue-Bold-16.bdf", 1);
+    
+    // Element 2: Status OK (wolne miganie)
+    matrix.displayText("OK", 5, 20, 16, 0, 255, 0,
+                      "ComicNeue-Regular-16.bdf", 2, 1000);
+    
+    // Element 3: Temperatura (nie miga)
+    matrix.displayText("25C", 40, 20, 16, 255, 165, 0,
+                      "ComicNeue-Regular-16.bdf", 3);
+    
+    // Element 4: Alert (szybkie miganie)
+    matrix.displayText("ALERT", 5, 40, 16, 255, 0, 0,
+                      "ComicNeue-Regular-16.bdf", 4, 300);
+    
+    // Element 5: Animowany GIF
+    matrix.loadGif("loading.gif", 50, 35, 16, 16, 5);
+}
 
-### Dostępne komendy
-
-- `0x01` - CMD_LOAD_GIF
-- `0x02` - CMD_DISPLAY_TEXT
-- `0x03` - CMD_CLEAR_SCREEN
-- `0x04` - CMD_SET_BRIGHTNESS
-- `0x05` - CMD_GET_STATUS
-
-## Wymagania sprzętowe
-
-- **Mikrokontroler**: ESP32
-- **Port szeregowy**: HardwareSerial (Serial1, Serial2)
-- **Baudrate**: 1000000 bps (1 Mbps)
-- **Połączenie**: TX → RX matrycy, GND wspólne
-
-## Rozwiązywanie problemów
-
-### Problem: Brak komunikacji z matrycą
-
-**Rozwiązanie:**
-- Sprawdź połączenia (TX → RX, GND)
-- Zweryfikuj baudrate (domyślnie 1000000)
-- Sprawdź czy ID ekranu jest poprawne
-- Upewnij się, że matryca jest zasilana
-
-### Problem: Zniekształcony tekst
-
-**Rozwiązanie:**
-- Zmniejsz baudrate (np. 115200)
-- Dodaj opóźnienia między komendami
-- Sprawdź jakość połączenia
-
-### Problem: Brak wyświetlania
-
-**Rozwiązanie:**
-- Wyczyść ekran: `matrix.clearScreen()`
-- Sprawdź jasność: `matrix.setBrightness(80)`
-- Zweryfikuj poprawność nazw plików GIF
-
-## Debug
-
-Biblioteka automatycznie wyświetla pakiety w formacie hex na Serial (115200 bps):
-
-```
-[MTRX TX] AA 01 02 28 00 00 00 00 02 FF FF 00 05 48 45 4C 4C 4F ...
+void loop() {
+    // Aktualizuj dane w razie potrzeby...
+    delay(100);
+}
 ```
 
-## Licencja
+## 🎯 Element ID
 
-Ten kod jest udostępniany na licencji MIT. Możesz go swobodnie używać i modyfikować.
+Każdy element (tekst lub GIF) musi mieć unikalny `elementId` (0-255). Jest to używane do:
 
-## Autor
+1. **Aktualizacji** - wysłanie nowej komendy z tym samym ID zaktualizuje element
+2. **Identyfikacji** - pozwala na zarządzanie konkretnymi elementami
+3. **Usuwania** - możesz usunąć element wysyłając pustą komendę z danym ID
 
-Generated - 2024
+```cpp
+// Utwórz element z ID=5
+matrix.displayText("Hello", 10, 10, 16, 255, 255, 255,
+                  "ComicNeue-Regular-16.bdf", 5);
 
-## Wersja
+// Zaktualizuj element z ID=5
+matrix.displayText("World", 10, 10, 16, 255, 0, 0,
+                  "ComicNeue-Regular-16.bdf", 5);
+```
 
-1.0.0
+## 🔌 Podłączenie sprzętu
 
-## Changelog
+### ESP32 → Raspberry Pi
 
-### v1.0.0 (2024)
-- Pierwsza wersja biblioteki
-- Podstawowe funkcje wyświetlania tekstu
-- Obsługa GIF
-- Kontrola jasności
-- Czyszczenie ekranu
+```
+ESP32           Raspberry Pi
+-----           ------------
+GND     ----→   GND
+TX      ----→   RX
+RX      ----→   TX
+```
 
+### Porty szeregowe ESP32
+
+- `Serial` - USB (do debugowania lub komunikacji przez USB)
+- `Serial1` - GPIO 9/10 (RX/TX, domyślnie)
+- `Serial2` - GPIO 16/17 (RX/TX, domyślnie)
+
+**Przykład z Serial2:**
+```cpp
+LEDMatrix matrix(Serial2);
+
+void setup() {
+    matrix.begin(1000000);
+    // Serial2 używa GPIO16 (RX) i GPIO17 (TX)
+}
+```
+
+## ⚙️ Wymagania
+
+- **ESP32** (dowolny model)
+- **Arduino IDE** 1.8.x lub nowszy / **PlatformIO**
+- **Raspberry Pi** z zainstalowanym `led-image-viewer`
+- **Port szeregowy** 1 Mbps (domyślnie)
+
+## 📝 Changelog
+
+### v1.1.0 (2025-10-19)
+- ✨ **NOWOŚĆ:** Dodano obsługę migania tekstu (`blinkIntervalMs`)
+- 🔧 Zaktualizowano strukturę `TextCommand` z 75 do 77 bajtów
+- 📚 Dodano dokumentację `BLINK_FEATURE.md`
+
+### v1.0.0
+- 🎉 Pierwsza publiczna wersja
+- Podstawowe funkcje: displayText, loadGif, clearScreen, setBrightness
+
+## 🐛 Rozwiązywanie problemów
+
+### Nic się nie wyświetla
+1. Sprawdź połączenie TX/RX (TX ESP32 → RX RPi)
+2. Sprawdź czy `led-image-viewer` działa na RPi
+3. Sprawdź baudrate (musi być 1 Mbps na obu stronach)
+
+### Znaki specjalne się nie wyświetlają
+1. Czcionki BDF mają ograniczony zestaw znaków
+2. Użyj czcionek z pełnym wsparciem UTF-8
+
+### Tekst nie miga
+1. Sprawdź czy ustawiłeś `blinkIntervalMs > 0`
+2. Sprawdź czy używasz najnowszej wersji biblioteki
+3. Zobacz `BLINK_FEATURE.md` dla szczegółów
+
+## 📄 Licencja
+
+MIT License - używaj dowolnie!
+
+## 👥 Autor
+
+Generated with ❤️ for ESP32 LED Matrix projects
+
+---
+
+**Dokumentacja:** [README.md](README.md) | [BLINK_FEATURE.md](BLINK_FEATURE.md)  
+**Wersja:** 1.1.0  
+**Data:** 2025-10-19
