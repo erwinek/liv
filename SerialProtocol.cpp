@@ -6,8 +6,13 @@
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
+#include <time.h>
+#include <sys/ioctl.h>
 
-SerialProtocol::SerialProtocol() : serial_fd(-1) {
+SerialProtocol::SerialProtocol() : serial_fd(-1), 
+    last_garbage_time_us(0),
+    esp32_restart_detected_time_us(0),
+    esp32_restart_grace_period(false) {
 }
 
 SerialProtocol::~SerialProtocol() {
@@ -60,7 +65,10 @@ bool SerialProtocol::init(const char* device, int baudrate) {
     tty.c_cflag &= ~CSIZE;         // Clear size bits
     tty.c_cflag |= CS8;            // 8 data bits
     tty.c_cflag &= ~CRTSCTS;       // No hardware flow control
-    tty.c_cflag |= CREAD | CLOCAL; // Enable reading and ignore modem control lines
+    tty.c_cflag |= CREAD;          // Enable reading
+    tty.c_cflag &= ~CLOCAL;        // Don't ignore modem control lines (needed for DTR/RTS control!)
+    
+    std::cout << "Serial config: Hardware flow control OFF, Modem control lines ENABLED" << std::endl;
     
     // Configure input modes
     tty.c_iflag &= ~(IXON | IXOFF | IXANY); // No software flow control
@@ -83,6 +91,9 @@ bool SerialProtocol::init(const char* device, int baudrate) {
         return false;
     }
     
+    // Initialize ESP32 with proper DTR/RTS sequence
+    initESP32ResetSequence();
+    
     // Flush any existing data in the buffers (important after ESP32 restart)
     tcflush(serial_fd, TCIOFLUSH);
     std::cout << "UART buffers flushed" << std::endl;
@@ -92,11 +103,38 @@ bool SerialProtocol::init(const char* device, int baudrate) {
 }
 
 void SerialProtocol::processData() {
+    // Check if we're in ESP32 restart grace period
+    if (esp32_restart_grace_period) {
+        uint64_t current_time = getCurrentTimeUs();
+        uint64_t elapsed = current_time - esp32_restart_detected_time_us;
+        
+        if (elapsed < RESTART_GRACE_PERIOD_US) {
+            // Still in grace period - just flush and ignore data
+            uint8_t dummy[256];
+            ssize_t bytes_read = read(serial_fd, dummy, sizeof(dummy));
+            if (bytes_read > 0) {
+                std::cout << "ESP32 restart grace period: ignoring " << bytes_read 
+                          << " bytes (remaining: " << (RESTART_GRACE_PERIOD_US - elapsed) / 1000 << " ms)" << std::endl;
+            }
+            rx_buffer.clear();
+            return;
+        } else {
+            // Grace period ended
+            std::cout << "ESP32 restart grace period ended - resuming normal operation" << std::endl;
+            esp32_restart_grace_period = false;
+            flushUartBuffers();
+            rx_buffer.clear();
+        }
+    }
+    
     uint8_t byte;
     ssize_t bytes_read = read(serial_fd, &byte, 1);
     
+    // Reduce debug output during normal operation (only show non-zero bytes or when buffer is building)
     while (bytes_read > 0) {
-        std::cout << "Received byte: 0x" << std::hex << (int)byte << std::dec << std::endl;
+        if (byte != 0 || rx_buffer.empty()) {
+            std::cout << "Received byte: 0x" << std::hex << (int)byte << std::dec << std::endl;
+        }
         addToBuffer(byte);
         bytes_read = read(serial_fd, &byte, 1);
     }
@@ -307,7 +345,12 @@ void SerialProtocol::processBuffer() {
         // If no SOF found, buffer contains only garbage - clear it all
         // Also flush UART buffers to remove any remaining garbage from ESP32 restart
         if (sof_position == rx_buffer.size()) {
-            std::cout << "No SOF found in buffer, clearing " << rx_buffer.size() << " bytes of garbage" << std::endl;
+            size_t garbage_size = rx_buffer.size();
+            std::cout << "No SOF found in buffer, clearing " << garbage_size << " bytes of garbage" << std::endl;
+            
+            // Detect potential ESP32 restart
+            detectESP32Restart(garbage_size);
+            
             rx_buffer.clear();
             flushUartBuffers();  // Clear system UART buffers too!
             return;
@@ -531,4 +574,131 @@ void* SerialProtocol::parseStatusCommand(const uint8_t* payload, uint8_t length)
     
     memcpy(cmd, payload, sizeof(StatusCommand));
     return cmd;
+}
+
+uint64_t SerialProtocol::getCurrentTimeUs() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000ULL;
+}
+
+void SerialProtocol::detectESP32Restart(size_t garbage_bytes) {
+    // If we receive >200 bytes of garbage, it's likely ESP32 restarted
+    // ESP32 boot messages can be 500-1000+ bytes
+    if (garbage_bytes > 200) {
+        uint64_t current_time = getCurrentTimeUs();
+        
+        // If we haven't seen garbage in a while, this is likely a restart
+        if (last_garbage_time_us == 0 || (current_time - last_garbage_time_us) > 5000000) { // 5 seconds
+            std::cout << "=== ESP32 RESTART DETECTED (" << garbage_bytes << " bytes of garbage) ===" << std::endl;
+            std::cout << "=== Entering " << (RESTART_GRACE_PERIOD_US / 1000000) << " second grace period ===" << std::endl;
+            
+            esp32_restart_detected_time_us = current_time;
+            esp32_restart_grace_period = true;
+            
+            // Aggressively flush everything
+            flushUartBuffers();
+            rx_buffer.clear();
+        }
+        
+        last_garbage_time_us = current_time;
+    }
+}
+
+void SerialProtocol::setDTR(bool state) {
+    if (serial_fd < 0) return;
+    
+    int status;
+    if (ioctl(serial_fd, TIOCMGET, &status) == -1) {
+        std::cerr << "Failed to get serial line status" << std::endl;
+        return;
+    }
+    
+    if (state) {
+        status |= TIOCM_DTR;  // Set DTR HIGH
+    } else {
+        status &= ~TIOCM_DTR; // Set DTR LOW
+    }
+    
+    if (ioctl(serial_fd, TIOCMSET, &status) == -1) {
+        std::cerr << "Failed to set DTR" << std::endl;
+        return;
+    }
+    
+    std::cout << "DTR set to " << (state ? "HIGH" : "LOW") << std::endl;
+}
+
+void SerialProtocol::setRTS(bool state) {
+    if (serial_fd < 0) {
+        std::cerr << "ERROR: serial_fd < 0, cannot set RTS" << std::endl;
+        return;
+    }
+    
+    int status;
+    if (ioctl(serial_fd, TIOCMGET, &status) == -1) {
+        std::cerr << "Failed to get serial line status for RTS" << std::endl;
+        return;
+    }
+    
+    std::cout << "Current modem status before RTS change: 0x" << std::hex << status << std::dec << std::endl;
+    
+    if (state) {
+        status |= TIOCM_RTS;  // Set RTS HIGH
+    } else {
+        status &= ~TIOCM_RTS; // Set RTS LOW
+    }
+    
+    if (ioctl(serial_fd, TIOCMSET, &status) == -1) {
+        std::cerr << "Failed to set RTS" << std::endl;
+        perror("ioctl TIOCMSET");
+        return;
+    }
+    
+    // Verify the change
+    int verify_status;
+    if (ioctl(serial_fd, TIOCMGET, &verify_status) == 0) {
+        bool rts_actual = (verify_status & TIOCM_RTS) != 0;
+        std::cout << "RTS requested: " << (state ? "HIGH" : "LOW") 
+                  << ", actual: " << (rts_actual ? "HIGH" : "LOW");
+        if (rts_actual != state) {
+            std::cout << " ⚠️ MISMATCH!";
+        }
+        std::cout << " (status=0x" << std::hex << verify_status << std::dec << ")" << std::endl;
+    } else {
+        std::cout << "RTS set to " << (state ? "HIGH" : "LOW") << " (verification failed)" << std::endl;
+    }
+}
+
+void SerialProtocol::initESP32ResetSequence() {
+    std::cout << "Initializing ESP32 reset sequence (2-transistor auto-reset circuit)..." << std::endl;
+    
+    // 2-TRANSISTOR CIRCUIT (both DTR and RTS inverted!):
+    // Confirmed by test: DTR=LOW + RTS=LOW → EN=HIGH + GPIO0=HIGH ✓
+    // 
+    // DTR=LOW,  RTS=LOW  -> EN=HIGH, GPIO0=HIGH (Normal Mode - running) ✓
+    // DTR=LOW,  RTS=HIGH -> EN=HIGH, GPIO0=LOW  (Bootloader Mode)
+    // DTR=HIGH, RTS=LOW  -> EN=LOW,  GPIO0=HIGH (Reset active)
+    // DTR=HIGH, RTS=HIGH -> EN=LOW,  GPIO0=LOW  (Reset in bootloader)
+    
+    // Step 1: Prepare GPIO0 for normal mode BEFORE releasing reset
+    std::cout << "Setting RTS=LOW (GPIO0=HIGH for normal mode)" << std::endl;
+    setRTS(false);  // RTS LOW = GPIO0 HIGH
+    usleep(50000);  // 50ms - ensure GPIO0 is stable
+    
+    // Step 2: Assert reset with GPIO0 HIGH
+    std::cout << "Asserting reset: DTR=HIGH, RTS=LOW (EN=LOW, GPIO0=HIGH)" << std::endl;
+    setDTR(true);   // DTR HIGH = EN LOW (ESP32 in reset)
+    usleep(100000); // 100ms - hold in reset
+    
+    // Step 3: Release reset - ESP32 samples GPIO0=HIGH and boots into normal mode
+    std::cout << "Releasing reset: DTR=LOW, RTS=LOW (EN=HIGH, GPIO0=HIGH)" << std::endl;
+    setDTR(false);  // DTR LOW = EN HIGH (ESP32 boots)
+    setRTS(false);  // Keep RTS LOW = GPIO0 stays HIGH
+    
+    // Step 4: Final state verified by test
+    std::cout << "Final state: DTR=LOW, RTS=LOW → EN=HIGH, GPIO0=HIGH ✓" << std::endl;
+    std::cout << "Waiting for ESP32 to boot..." << std::endl;
+    usleep(1000000); // 1 second - wait for ESP32 to fully boot
+    
+    std::cout << "ESP32 should be running in normal mode" << std::endl;
 }

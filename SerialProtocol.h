@@ -135,6 +135,12 @@ private:
     std::vector<uint8_t> rx_buffer;
     std::vector<void*> pending_commands;
     
+    // ESP32 restart detection
+    uint64_t last_garbage_time_us;
+    uint64_t esp32_restart_detected_time_us;
+    bool esp32_restart_grace_period;
+    static constexpr uint64_t RESTART_GRACE_PERIOD_US = 2000000; // 2 seconds
+    
     // Protocol functions
     uint8_t calculateChecksum(const uint8_t* data, uint8_t length);
     bool validatePacket(const ProtocolPacket* packet);
@@ -142,6 +148,11 @@ private:
     void addToBuffer(uint8_t byte);
     void processBuffer();
     void flushUartBuffers();  // Flush system UART buffers
+    uint64_t getCurrentTimeUs();  // Get current time in microseconds
+    void detectESP32Restart(size_t garbage_bytes);  // Detect ESP32 restart from garbage
+    void setDTR(bool state);  // Set DTR line state
+    void setRTS(bool state);  // Set RTS line state
+    void initESP32ResetSequence();  // Initialize ESP32 with proper reset sequence
     
     // Command parsing
     void* parseGifCommand(const uint8_t* payload, uint8_t length);
