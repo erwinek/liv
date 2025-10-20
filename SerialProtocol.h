@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include <netinet/in.h>
 
 // Protocol constants - Preamble for reliable synchronization (like Ethernet)
 #define PROTOCOL_PREAMBLE_1 0xAA  // Preamble byte 1
@@ -115,8 +116,8 @@ public:
     SerialProtocol();
     ~SerialProtocol();
     
-    // Initialize serial communication
-    bool init(const char* device, int baudrate = 1000000);
+    // Initialize TCP communication (now uses TCP instead of direct serial)
+    bool init(const char* host, int port);
     
     // Process incoming data
     void processData();
@@ -136,14 +137,16 @@ public:
     // Cleanup command memory
     void freeCommand(void* command);
     
-    // Close serial connection
+    // Close TCP connection
     void close();
     
     // Test function to send test data
     void sendTestData();
 
 private:
-    int serial_fd;
+    int tcp_socket;
+    struct sockaddr_in server_addr;
+    socklen_t server_addr_len;
     std::vector<uint8_t> rx_buffer;
     std::vector<void*> pending_commands;
     
@@ -159,12 +162,8 @@ private:
     void parsePacket(const ProtocolPacket* packet);
     void addToBuffer(uint8_t byte);
     void processBuffer();
-    void flushUartBuffers();  // Flush system UART buffers
     uint64_t getCurrentTimeUs();  // Get current time in microseconds
     void detectESP32Restart(size_t garbage_bytes);  // Detect ESP32 restart from garbage
-    void setDTR(bool state);  // Set DTR line state
-    void setRTS(bool state);  // Set RTS line state
-    void initESP32ResetSequence();  // Initialize ESP32 with proper reset sequence
     
     // Command parsing
     void* parseGifCommand(const uint8_t* payload, uint8_t length);

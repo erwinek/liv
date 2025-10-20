@@ -1,18 +1,20 @@
 #include "SerialProtocol.h"
 #include <fcntl.h>
-#include <termios.h>
 #include <unistd.h>
 #include <cstring>
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
 #include <time.h>
-#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
-SerialProtocol::SerialProtocol() : serial_fd(-1), 
+SerialProtocol::SerialProtocol() : tcp_socket(-1), 
     last_garbage_time_us(0),
     esp32_restart_detected_time_us(0),
     esp32_restart_grace_period(false) {
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr_len = sizeof(server_addr);
 }
 
 SerialProtocol::~SerialProtocol() {
@@ -23,82 +25,48 @@ SerialProtocol::~SerialProtocol() {
     }
 }
 
-bool SerialProtocol::init(const char* device, int baudrate) {
-    // Open serial device
-    serial_fd = open(device, O_RDWR | O_NOCTTY | O_NDELAY);
-    if (serial_fd == -1) {
-        std::cerr << "Failed to open serial device: " << device << std::endl;
+bool SerialProtocol::init(const char* host, int port) {
+    // Create TCP socket
+    tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (tcp_socket < 0) {
+        std::cerr << "Failed to create TCP socket" << std::endl;
         return false;
     }
     
-    // Configure serial port
-    struct termios tty;
-    if (tcgetattr(serial_fd, &tty) != 0) {
-        std::cerr << "Failed to get serial attributes" << std::endl;
+    // Configure server address
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+    
+    // Convert host address
+    if (inet_pton(AF_INET, host, &server_addr.sin_addr) <= 0) {
+        std::cerr << "Invalid address: " << host << std::endl;
         close();
         return false;
     }
     
-    // Set baud rate
-    speed_t speed;
-    switch (baudrate) {
-        case 9600: speed = B9600; break;
-        case 19200: speed = B19200; break;
-        case 38400: speed = B38400; break;
-        case 57600: speed = B57600; break;
-        case 115200: speed = B115200; break;
-        case 230400: speed = B230400; break;
-        case 460800: speed = B460800; break;
-        case 1000000: speed = B1000000; break;
-        default:
-            std::cerr << "Unsupported baud rate: " << baudrate << std::endl;
-            close();
-            return false;
-    }
-    
-    cfsetospeed(&tty, speed);
-    cfsetispeed(&tty, speed);
-    
-    // Configure 8N1
-    tty.c_cflag &= ~PARENB;        // No parity
-    tty.c_cflag &= ~CSTOPB;        // One stop bit
-    tty.c_cflag &= ~CSIZE;         // Clear size bits
-    tty.c_cflag |= CS8;            // 8 data bits
-    tty.c_cflag &= ~CRTSCTS;       // No hardware flow control
-    tty.c_cflag |= CREAD;          // Enable reading
-    tty.c_cflag &= ~CLOCAL;        // Don't ignore modem control lines (needed for DTR/RTS control!)
-    
-    std::cout << "Serial config: Hardware flow control OFF, Modem control lines ENABLED" << std::endl;
-    
-    // Configure input modes
-    tty.c_iflag &= ~(IXON | IXOFF | IXANY); // No software flow control
-    tty.c_iflag &= ~(ICANON | ECHO | ECHOE | ISIG); // Raw input
-    
-    // Configure output modes
-    tty.c_oflag &= ~OPOST; // Raw output
-    
-    // Configure local modes
-    tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG); // Raw input
-    
-    // Set timeouts
-    tty.c_cc[VTIME] = 0; // No timeout
-    tty.c_cc[VMIN] = 0;  // Non-blocking read
-    
-    // Apply settings
-    if (tcsetattr(serial_fd, TCSANOW, &tty) != 0) {
-        std::cerr << "Failed to set serial attributes" << std::endl;
+    // Connect to server
+    if (connect(tcp_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        std::cerr << "Failed to connect to " << host << ":" << port << std::endl;
+        std::cerr << "Make sure ser2net is running" << std::endl;
         close();
         return false;
     }
     
-    // Initialize ESP32 with proper DTR/RTS sequence
-    initESP32ResetSequence();
+    // Set socket to non-blocking mode after connection
+    int flags = fcntl(tcp_socket, F_GETFL, 0);
+    if (flags == -1) {
+        std::cerr << "Failed to get socket flags" << std::endl;
+        close();
+        return false;
+    }
+    if (fcntl(tcp_socket, F_SETFL, flags | O_NONBLOCK) == -1) {
+        std::cerr << "Failed to set socket to non-blocking mode" << std::endl;
+        close();
+        return false;
+    }
     
-    // Flush any existing data in the buffers (important after ESP32 restart)
-    tcflush(serial_fd, TCIOFLUSH);
-    std::cout << "UART buffers flushed" << std::endl;
-    
-    std::cout << "Serial protocol initialized on " << device << " at " << baudrate << " bps" << std::endl;
+    std::cout << "TCP protocol initialized to " << host << ":" << port << std::endl;
+    std::cout << "Using ser2net for shared serial port access" << std::endl;
     return true;
 }
 
@@ -110,8 +78,8 @@ void SerialProtocol::processData() {
         
         if (elapsed < RESTART_GRACE_PERIOD_US) {
             // Still in grace period - just flush and ignore data
-            uint8_t dummy[256];
-            ssize_t bytes_read = read(serial_fd, dummy, sizeof(dummy));
+            uint8_t dummy[1024];
+            ssize_t bytes_read = recv(tcp_socket, dummy, sizeof(dummy), 0);
             if (bytes_read > 0) {
                 std::cout << "ESP32 restart grace period: ignoring " << bytes_read 
                           << " bytes (remaining: " << (RESTART_GRACE_PERIOD_US - elapsed) / 1000 << " ms)" << std::endl;
@@ -122,30 +90,27 @@ void SerialProtocol::processData() {
             // Grace period ended
             std::cout << "ESP32 restart grace period ended - resuming normal operation" << std::endl;
             esp32_restart_grace_period = false;
-            flushUartBuffers();
             rx_buffer.clear();
         }
     }
     
-    uint8_t byte;
-    ssize_t bytes_read = read(serial_fd, &byte, 1);
+    // Read data from TCP socket
+    uint8_t buffer[1024];
+    ssize_t bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
     
-    int bytes_received_this_call = 0;
-    // Reduce debug output during normal operation (only show non-zero bytes or when buffer is building)
-    while (bytes_read > 0) {
-        bytes_received_this_call++;
-        if (byte == PROTOCOL_SOF) {
-            std::cout << "*** SOF received (0xAA) at buffer position " << rx_buffer.size() << std::endl;
+    if (bytes_read > 0) {
+        std::cout << "=== Received " << bytes_read << " bytes via TCP ===" << std::endl;
+        
+        // Add all received bytes to buffer
+        for (ssize_t i = 0; i < bytes_read; i++) {
+            if (buffer[i] == PROTOCOL_SOF) {
+                std::cout << "*** SOF received (0xAA) at buffer position " << rx_buffer.size() << std::endl;
+            }
+            if (buffer[i] != 0 || rx_buffer.empty()) {
+                std::cout << "RX[" << rx_buffer.size() << "]: 0x" << std::hex << (int)buffer[i] << std::dec << std::endl;
+            }
+            addToBuffer(buffer[i]);
         }
-        if (byte != 0 || rx_buffer.empty()) {
-            std::cout << "RX[" << rx_buffer.size() << "]: 0x" << std::hex << (int)byte << std::dec << std::endl;
-        }
-        addToBuffer(byte);
-        bytes_read = read(serial_fd, &byte, 1);
-    }
-    
-    if (bytes_received_this_call > 0) {
-        std::cout << "=== Received " << bytes_received_this_call << " bytes total ===" << std::endl;
     }
     
     if (rx_buffer.size() > 0) {
@@ -165,9 +130,13 @@ void SerialProtocol::sendResponse(uint8_t screen_id, ResponseCode code, const ui
         memcpy(response.data, data, data_len);
     }
     
-    // Send preamble first (3 bytes)
-    uint8_t preamble[3] = {PROTOCOL_PREAMBLE_1, PROTOCOL_PREAMBLE_2, PROTOCOL_PREAMBLE_3};
-    write(serial_fd, preamble, 3);
+    // Prepare buffer with preamble + packet
+    uint8_t send_buffer[sizeof(ProtocolPacket) + 3];
+    
+    // Add preamble first (3 bytes)
+    send_buffer[0] = PROTOCOL_PREAMBLE_1;
+    send_buffer[1] = PROTOCOL_PREAMBLE_2;
+    send_buffer[2] = PROTOCOL_PREAMBLE_3;
     
     ProtocolPacket packet;
     packet.sof = PROTOCOL_SOF;
@@ -181,10 +150,15 @@ void SerialProtocol::sendResponse(uint8_t screen_id, ResponseCode code, const ui
     memcpy(packet.payload, &response, 4 + data_len);
     packet.checksum = calculateChecksum(packet.payload, packet.payload_length);
     
-    ssize_t written = write(serial_fd, &packet, sizeof(ProtocolPacket));
-    std::cout << ">>> RESPONSE SENT: screen_id=" << (int)screen_id 
+    // Copy packet after preamble
+    memcpy(send_buffer + 3, &packet, sizeof(ProtocolPacket));
+    
+    // Send via TCP
+    ssize_t sent = send(tcp_socket, send_buffer, 3 + sizeof(ProtocolPacket), 0);
+    
+    std::cout << ">>> RESPONSE SENT via TCP: screen_id=" << (int)screen_id 
               << " code=" << (int)code 
-              << " bytes_written=" << (3 + written) << " (including preamble)" << std::endl;
+              << " bytes_sent=" << sent << " (including preamble)" << std::endl;
 }
 
 bool SerialProtocol::hasPendingCommand() {
@@ -215,26 +189,26 @@ void SerialProtocol::freeCommand(void* command) {
 }
 
 void SerialProtocol::close() {
-    if (serial_fd != -1) {
-        ::close(serial_fd);
-        serial_fd = -1;
+    if (tcp_socket != -1) {
+        ::close(tcp_socket);
+        tcp_socket = -1;
     }
 }
 
 void SerialProtocol::sendTestData() {
-    if (serial_fd == -1) {
-        std::cout << "Serial port not open, cannot send test data" << std::endl;
+    if (tcp_socket == -1) {
+        std::cout << "TCP socket not open, cannot send test data" << std::endl;
         return;
     }
     
     // Send a simple test message
     const char* test_msg = "LED_TEST\r\n";
-    ssize_t bytes_written = write(serial_fd, test_msg, strlen(test_msg));
+    ssize_t bytes_sent = send(tcp_socket, test_msg, strlen(test_msg), 0);
     
-    if (bytes_written > 0) {
-        std::cout << "Sent test data: " << test_msg << " (" << bytes_written << " bytes)" << std::endl;
+    if (bytes_sent > 0) {
+        std::cout << "Sent test data via TCP: " << test_msg << " (" << bytes_sent << " bytes)" << std::endl;
     } else {
-        std::cout << "Failed to send test data" << std::endl;
+        std::cout << "Failed to send test data via TCP" << std::endl;
     }
 }
 
@@ -336,19 +310,11 @@ void SerialProtocol::addToBuffer(uint8_t byte) {
     // Increased buffer size to handle high traffic and noise on the line
     // With preamble, we need more space for synchronization
     if (rx_buffer.size() > 2048) {
-        std::cout << "Buffer overflow! Removing 512 bytes and flushing UART" << std::endl;
+        std::cout << "Buffer overflow! Removing 512 bytes" << std::endl;
         rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + 512);
-        // Buffer overflow suggests ESP32 restart or heavy corruption
-        flushUartBuffers();
     }
 }
 
-void SerialProtocol::flushUartBuffers() {
-    if (serial_fd >= 0) {
-        tcflush(serial_fd, TCIOFLUSH);
-        std::cout << "UART buffers flushed (ESP32 restart recovery)" << std::endl;
-    }
-}
 
 void SerialProtocol::processBuffer() {
     // Aggressive garbage removal for better synchronization
@@ -380,7 +346,6 @@ void SerialProtocol::processBuffer() {
                 // Detect potential ESP32 restart
                 if (garbage_size > 100) {
                     detectESP32Restart(garbage_size);
-                    flushUartBuffers();
                 }
             }
             return;
@@ -390,9 +355,6 @@ void SerialProtocol::processBuffer() {
         if (preamble_position > 0) {
             std::cout << "Removing " << preamble_position << " bytes of garbage before preamble" << std::endl;
             rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + preamble_position);
-            if (preamble_position > 100) {
-                flushUartBuffers();
-            }
         }
         
         // Now preamble+SOF is at position 0-3
@@ -653,8 +615,7 @@ void SerialProtocol::detectESP32Restart(size_t garbage_bytes) {
             esp32_restart_detected_time_us = current_time;
             esp32_restart_grace_period = true;
             
-            // Aggressively flush everything
-            flushUartBuffers();
+            // Clear buffer
             rx_buffer.clear();
         }
         
@@ -662,100 +623,3 @@ void SerialProtocol::detectESP32Restart(size_t garbage_bytes) {
     }
 }
 
-void SerialProtocol::setDTR(bool state) {
-    if (serial_fd < 0) return;
-    
-    int status;
-    if (ioctl(serial_fd, TIOCMGET, &status) == -1) {
-        std::cerr << "Failed to get serial line status" << std::endl;
-        return;
-    }
-    
-    if (state) {
-        status |= TIOCM_DTR;  // Set DTR HIGH
-    } else {
-        status &= ~TIOCM_DTR; // Set DTR LOW
-    }
-    
-    if (ioctl(serial_fd, TIOCMSET, &status) == -1) {
-        std::cerr << "Failed to set DTR" << std::endl;
-        return;
-    }
-    
-    std::cout << "DTR set to " << (state ? "HIGH" : "LOW") << std::endl;
-}
-
-void SerialProtocol::setRTS(bool state) {
-    if (serial_fd < 0) {
-        std::cerr << "ERROR: serial_fd < 0, cannot set RTS" << std::endl;
-        return;
-    }
-    
-    int status;
-    if (ioctl(serial_fd, TIOCMGET, &status) == -1) {
-        std::cerr << "Failed to get serial line status for RTS" << std::endl;
-        return;
-    }
-    
-    std::cout << "Current modem status before RTS change: 0x" << std::hex << status << std::dec << std::endl;
-    
-    if (state) {
-        status |= TIOCM_RTS;  // Set RTS HIGH
-    } else {
-        status &= ~TIOCM_RTS; // Set RTS LOW
-    }
-    
-    if (ioctl(serial_fd, TIOCMSET, &status) == -1) {
-        std::cerr << "Failed to set RTS" << std::endl;
-        perror("ioctl TIOCMSET");
-        return;
-    }
-    
-    // Verify the change
-    int verify_status;
-    if (ioctl(serial_fd, TIOCMGET, &verify_status) == 0) {
-        bool rts_actual = (verify_status & TIOCM_RTS) != 0;
-        std::cout << "RTS requested: " << (state ? "HIGH" : "LOW") 
-                  << ", actual: " << (rts_actual ? "HIGH" : "LOW");
-        if (rts_actual != state) {
-            std::cout << " ⚠️ MISMATCH!";
-        }
-        std::cout << " (status=0x" << std::hex << verify_status << std::dec << ")" << std::endl;
-    } else {
-        std::cout << "RTS set to " << (state ? "HIGH" : "LOW") << " (verification failed)" << std::endl;
-    }
-}
-
-void SerialProtocol::initESP32ResetSequence() {
-    std::cout << "Initializing ESP32 reset sequence (2-transistor auto-reset circuit)..." << std::endl;
-    
-    // 2-TRANSISTOR CIRCUIT (both DTR and RTS inverted!):
-    // Confirmed by test: DTR=LOW + RTS=LOW → EN=HIGH + GPIO0=HIGH ✓
-    // 
-    // DTR=LOW,  RTS=LOW  -> EN=HIGH, GPIO0=HIGH (Normal Mode - running) ✓
-    // DTR=LOW,  RTS=HIGH -> EN=HIGH, GPIO0=LOW  (Bootloader Mode)
-    // DTR=HIGH, RTS=LOW  -> EN=LOW,  GPIO0=HIGH (Reset active)
-    // DTR=HIGH, RTS=HIGH -> EN=LOW,  GPIO0=LOW  (Reset in bootloader)
-    
-    // Step 1: Prepare GPIO0 for normal mode BEFORE releasing reset
-    std::cout << "Setting RTS=LOW (GPIO0=HIGH for normal mode)" << std::endl;
-    setRTS(false);  // RTS LOW = GPIO0 HIGH
-    usleep(50000);  // 50ms - ensure GPIO0 is stable
-    
-    // Step 2: Assert reset with GPIO0 HIGH
-    std::cout << "Asserting reset: DTR=HIGH, RTS=LOW (EN=LOW, GPIO0=HIGH)" << std::endl;
-    setDTR(true);   // DTR HIGH = EN LOW (ESP32 in reset)
-    usleep(100000); // 100ms - hold in reset
-    
-    // Step 3: Release reset - ESP32 samples GPIO0=HIGH and boots into normal mode
-    std::cout << "Releasing reset: DTR=LOW, RTS=LOW (EN=HIGH, GPIO0=HIGH)" << std::endl;
-    setDTR(false);  // DTR LOW = EN HIGH (ESP32 boots)
-    setRTS(false);  // Keep RTS LOW = GPIO0 stays HIGH
-    
-    // Step 4: Final state verified by test
-    std::cout << "Final state: DTR=LOW, RTS=LOW → EN=HIGH, GPIO0=HIGH ✓" << std::endl;
-    std::cout << "Waiting for ESP32 to boot..." << std::endl;
-    usleep(1000000); // 1 second - wait for ESP32 to fully boot
-    
-    std::cout << "ESP32 should be running in normal mode" << std::endl;
-}

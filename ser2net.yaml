@@ -1,0 +1,19 @@
+%YAML 1.1
+---
+# ser2net configuration for sharing ttyUSB0 via TCP port 3333
+# This allows multiple applications to connect to the same serial port
+
+define: &banner \r\nser2net port \p device \d [\s] (Debian GNU/Linux)\r\n\r\n
+
+connection: &uart
+  accepter: tcp,3333
+  enable: on
+  options:
+    kickolduser: true
+    banner: *banner
+  connector: serialdev,
+            /dev/ttyUSB0,
+            1000000n81,
+            local
+            nobreak
+

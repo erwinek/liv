@@ -145,41 +145,15 @@ bool DisplayManager::init() {
         return false;
     }
     
-    // Check if serial device exists
-    if (access("/dev/ttyUSB0", F_OK) != 0) {
-        std::cerr << "Serial device /dev/ttyUSB0 not found. Available devices:" << std::endl;
-        system("ls -la /dev/tty* 2>/dev/null | grep -E '(USB|ACM)'");
-        std::cerr << "Trying alternative devices..." << std::endl;
-        
-        // Try common alternatives
-        const char* devices[] = {"/dev/ttyUSB1", "/dev/ttyACM0", "/dev/ttyACM1", "/dev/serial0", "/dev/ttyS0"};
-        bool found = false;
-        
-        for (int i = 0; i < 5; i++) {
-            if (access(devices[i], F_OK) == 0) {
-                std::cout << "Found device: " << devices[i] << std::endl;
-                if (serial_protocol.init(devices[i], 1000000)) {
-                    std::cout << "Successfully initialized serial protocol on " << devices[i] << std::endl;
-                    serial_protocol.sendTestData();
-                    found = true;
-                    break;
-                }
-            }
-        }
-        
-        if (!found) {
-            std::cerr << "Warning: No suitable serial device found" << std::endl;
-        }
+    // Initialize TCP protocol (using ser2net for shared serial port access)
+    if (!serial_protocol.init("127.0.0.1", 3333)) {
+        std::cerr << "Warning: Failed to initialize TCP protocol on 127.0.0.1:3333" << std::endl;
+        std::cerr << "Make sure ser2net is running and configured for port 3333" << std::endl;
+        // Continue without protocol - not critical for basic functionality
     } else {
-        // Initialize serial protocol (default to /dev/ttyUSB0)
-        if (!serial_protocol.init("/dev/ttyUSB0", 1000000)) {
-            std::cerr << "Warning: Failed to initialize serial protocol" << std::endl;
-            // Continue without serial - not critical for basic functionality
-        } else {
-            // Send test data to verify communication
-            std::cout << "Sending test data to verify UART communication..." << std::endl;
-            serial_protocol.sendTestData();
-        }
+        // Send test data to verify communication
+        std::cout << "Sending test data to verify TCP communication..." << std::endl;
+        serial_protocol.sendTestData();
     }
     
     // Add diagnostic display elements

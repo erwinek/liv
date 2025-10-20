@@ -29,7 +29,7 @@
 
 static const char SYSLOG_APPNAME[] = "PGM";
 
-#define VERSION "5.69i"
+#define VERSION "5.69j"
 
 SimpleSyslog *pSysLog = nullptr;
 char ChipIdString[30];
@@ -954,6 +954,7 @@ bool GameStart()
 
   DisplayGameMatrix();
   matrix.displayText("Press Start!", 30, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
+  delay(1);
   
   Zar.Z9_Logo = 1;
 
@@ -1717,31 +1718,7 @@ bool Pomiar()
       if(KEY_START1) QuickStartBoxer = true;
       else if(KEY_START2) QuickStartKopacz = true;
       TicketOut += ((Fram.TicketScore * Wynik) /100);
-
-      if (Fram.BoxerModel==MONSTER) {
-        if (GameMode==BOXER) {
-          if(Wynik > Fram.RecordBoxer) {
-            printf("\n Nowy RekordBoxer=%d", Fram.RecordBoxer);
-            Fram.RecordBoxer = Wynik;
-            PlayRandomMp3(wcPlayFanfaryRekord);
-          } 
-        }
-        else if (GameMode==KOPACZ) {
-          if(Wynik > Fram.RecordKicker) {
-            printf("\n Nowy RekordKicker=%d", Fram.RecordKicker);
-            Fram.RecordKicker = Wynik;
-            PlayRandomMp3(wcPlayFanfaryRekord);
-          } 
-        }
-        else {
-          if(Wynik> Fram.RecordHammer) {
-            printf("\n Nowy RekordHammer=%d", Fram.RecordHammer);
-            Fram.RecordHammer = Wynik;
-            PlayRandomMp3(wcPlayFanfaryRekord);
-          }
-        }
-      }
-      else if(Wynik > Fram.Record) {
+      if(Wynik > Fram.Record) {
           QuickStartBoxer = false;
           Fram.Record = Wynik;
           printf("\n Nowy Rekord=%d", Fram.Record);
