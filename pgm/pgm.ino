@@ -707,10 +707,10 @@ void Choinka()
 
   switch(LedEffectCnt) {
     case 0:
-      matrix.loadGif("anim/8.gif", 0, 0, 192, 192, 0);
+      matrix.loadGif("anim/boxer.gif", 36, 36+2, 192-(36*2), 192-(36*2), 0);
       matrix.displayText("*$* Insert Coin *$*", 10, 170, 2, 255, 255, 0, "fonts/9x18B.bdf", 1, 500);
-      matrix.displayText("PRO-GAMES POLAND", 25, 12, 2, 255, 255, 0, "fonts/9x18B.bdf", 2, 500);
-      matrix.displayText("* Monster 3in1 *", 40, 25, 2, 255, 255, 0, "fonts/7x13.bdf", 3, 500);
+      matrix.displayText("PRO-GAMES POLAND", 25, 5, 2, 255, 255, 0, "fonts/9x18B.bdf", 2, 0);
+      matrix.displayText("* Monster 3in1 *", 40, 25, 2, 255, 255, 0, "fonts/7x13.bdf", 3, 0);
 
       if(Fram.BoxerMat==1) {
         fill_solid( leds1, num_leds1, CRGB::Black); 
@@ -739,7 +739,7 @@ void Choinka()
         DisplayRekord(Fram.Record);
     break;
     case 2:
-      matrix.loadGif("anim/7.gif", 0, 0, 128, 128, 0);
+      matrix.loadGif("anim/2.gif", 0, 0, 192, 192, 0);
       if(Fram.BoxerMat==1) {
         LedNightRiderWhite(leds1, num_leds1);
         LedNightRiderWhite(leds2, num_leds2);
@@ -947,16 +947,13 @@ bool GameStart()
   cntGruchaZamknieta = 0;
 
   if (firstEntry==true) {
-    for(int i=0;i<10;i++) {
-      matrix.clearScreen();
-      delay(10);
-    }
-    firstEntryGameStart = false;
-    
+    matrix.clearScreen();
+    delay(1);    
+    firstEntryGameStart = false;    
   }
 
   DisplayGameMatrix();
-  matrix.displayText("Press Start!", 20, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
+  matrix.displayText("Press Start!", 30, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
   
   Zar.Z9_Logo = 1;
 
@@ -1078,7 +1075,10 @@ bool GameStart()
     printf("\n KEY_START_HAMMER");
     GameMode = HAMMER;
     ret = true;
-    Sens4Done = 0;    
+    Sens4Done = 0;
+    Wynik = 0;
+    DisplayWynik(Wynik);
+    DisplayPlayer(CurrentPlayer, Wynik);
   }
 
   DisplayRekord(Fram.Record);
@@ -1167,7 +1167,7 @@ bool GameStart()
     int i = 1;
     for(i=1;i<=NumberOfPLayers;i++) DisplayPlayer(i, i, true);
     for(i;i<=3;i++) DisplayPlayer(i, 0xFFFF);
-  if ((Fram.Credit >= 2) && (KEY_3PLAYER)) {
+  if ((Fram.Credit >= 2) && (KEY_3PLAYER) && (Fram.BoxerModel==FIST)) {
     if(NumberOfPLayers < Fram.Credit) NumberOfPLayers++;
     else NumberOfPLayers = 1;
     if (NumberOfPLayers > 3) NumberOfPLayers = 1;
@@ -1256,7 +1256,8 @@ bool Naliczanie(uint16_t value)
   circleLedStr2();
   UpdateCredit();
 
-  matrix.displayText(String(Wynik).c_str(), 192/2 - 10, 16, 2, 255, 0, 0, "fonts/ComicNeue-Bold-48.bdf", 2, 0);
+  matrix.displayText(String(tempWynik).c_str(), 192/2 - String(tempWynik).length()*10, 62, 2, 0, 255, 0, "fonts/ComicNeue-Bold-48.bdf", 4, 0);
+  delay(1);  
 
   if(tempWynik>999) {
     tempWynik = 0;
@@ -1459,29 +1460,11 @@ void Matrix_SetText1(char* text, bool force=false);
 void Matrix_SetText2(char* text, bool force=false);
 
 void Matrix_SetText1(char* text, bool force) {
-  if (Fram.BoxerModel!=MONSTER) return;
-  static uint64_t timestamp = millis();
-  static uint8_t cnt10 = 0;
-
-  if (force || ((millis() - timestamp) > 200)) {
-    timestamp = millis();
-    printf("\nTEXT1 %s\n", text);
-    cnt10++;
-    if(cnt10%10==0) printf("STOP_GIF\n");
-  }  
+  
 }
 
 void Matrix_SetText2(char* text, bool force) {
-  if (Fram.BoxerModel!=MONSTER) return;
-  static uint64_t timestamp = millis();
-  static uint8_t cnt10 = 0;
-
-  if (force || ((millis() - timestamp) > 200)) {
-    timestamp = millis();
-    printf("\nTEXT2 %s\n", text);
-    cnt10++;
-    if(cnt10%10==0) printf("STOP_GIF\n");
-  }  
+  
 }
 
 
@@ -1498,24 +1481,22 @@ bool Pomiar()
     Zar.Z13_FIST = 1;
   }
 
-  DisplayGameMatrix();
-
-  if(GruchaOtwarta()==1) {
-    GameMode = BOXER;
-    matrix.displayText("Hit the punch!", 20, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);
-  }
-  if(GruchaOtwarta()==2) {
-    GameMode = KOPACZ;
-    matrix.displayText("Kick the ball!", 20, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
-  }
-  if (GameMode == HAMMER) {
-    matrix.displayText("Hammer time!", 20, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
-  }
-
-
   if (wynik == 0)
   {
+    if(GruchaOtwarta()==1) {
+      GameMode = BOXER;
+      matrix.displayText("Hit the punch!", 25, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);
+    }
+    if(GruchaOtwarta()==2) {
+      GameMode = KOPACZ;
+      matrix.displayText("Kick the ball!", 25, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
+    }
+    if (GameMode == HAMMER) {
+      matrix.displayText("Use the hammer!", 25, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
+    }
+
     DisplayPlayer(CurrentPlayer, Wynik, true);
+    DisplayGameMatrix();
     
     if (false == Mp3IsPlaying())
     {
@@ -1589,12 +1570,14 @@ bool Pomiar()
 
     if (Sens4Done && (GameMode == HAMMER)) {
       HammerTimeUs = TimeSens4Stop - TimeSens4Start;
-      printf("\n  Pomiar  Sens4=%llu",  HammerTimeUs);
+      matrix.clearScreen();
+      delay(1);      
       Sens4Done = false;
       Wynik = 0;
       TimeSens4Stop = 0;
-      TimeSens4Start = 0;
-      matrix.loadGif("anim/confetti.gif", 0, 0, 192, 192, 0);
+      TimeSens4Start = 0;      
+      matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+      delay(1);      
       PlayMp3(280);
       wynik = KonwersjaCzasuNasSile(HammerTimeUs);
       wynik = (wynik * 73) / 100; //obnizamy na dziendobry dla mlota
@@ -1606,19 +1589,19 @@ bool Pomiar()
       if(Fram.Credit>=1) Fram.Credit--;
     }
 
-    
-
     if ((TimeSens0Stop > 0) && (TimeSens0Start > 0))
     {
-      PlayMp3(280);
-      matrix.loadGif("anim/confetti.gif", 0, 0, 192, 192, 0);
+      matrix.clearScreen();
+      delay(1);
+      matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+      delay(1);
       wynik = TimeSens0Stop - StartArray[0];
-      DebugSensor();
-
-      printf("\n TimeSens0Stop - StartArray[0]=%d", wynik);
+      PlayMp3(280);      
+      //DebugSensor();
+      //printf("\n TimeSens0Stop - StartArray[0]=%d", wynik);
       wynik = KonwersjaCzasuNasSile(wynik);
       TournamentScores[CurrentPlayer] = wynik;
-      printf("\n wynik=%d", wynik);
+      //printf("\n wynik=%d", wynik);
 
       Stroboskop(10);
       Zar.Z14_HALOGEN1 = 0;
@@ -1627,7 +1610,12 @@ bool Pomiar()
     }
     else if ((TimeSens2Stop > 0) && (TimeSens2Start > 0))
     {
-      PlayMp3(233);
+      matrix.clearScreen();
+      delay(1);
+      matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+      delay(1);
+
+      PlayMp3(233);      
       wynik = TimeSens2Stop - StartArray[0];
       DebugSensor();
       int wynikInterruptLogArray = InterruptLogArray[InterruptTimeArrayIndex-1].timestamp - InterruptLogArray[0].timestamp;
@@ -1649,7 +1637,10 @@ bool Pomiar()
       if(Fram.Credit>=1) Fram.Credit--;
     }
     else if ((wynik==0) && (cntOtwartaKopacz>5) && (cntGruchaZamknieta>5) && (GameMode == KOPACZ)) {
-
+        matrix.clearScreen();
+        delay(1);
+        matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+        delay(1);
         PlayMp3(233);
         wynik = InterruptLogArray[InterruptTimeArrayIndex-1].timestamp - InterruptLogArray[0].timestamp;
         DebugSensor();
@@ -1663,7 +1654,10 @@ bool Pomiar()
     }
     else if ((wynik==0) && (cntOtwartaBoxer>5) && (cntGruchaZamknieta>5) && (GameMode == BOXER)) { 
       //jesli grucha w gorze to takze zrob pomiar
-
+        matrix.clearScreen();
+        delay(1);
+        matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+        delay(1);
         PlayMp3(280);
         wynik = InterruptLogArray[InterruptTimeArrayIndex-1].timestamp - InterruptLogArray[0].timestamp;
         printf("\n KonwersjaCzasuNasSile 1529");
@@ -1866,7 +1860,7 @@ bool EndGame() {
   Sens4Done = false;
   TimeSens4Stop = 0;
   TimeSens4Start = 0;
-  //PlayMp3(360);
+  matrix.clearScreen();
   return ret;
 }
 
@@ -2419,13 +2413,14 @@ void FramUpdate(void)
 }
 
 void DisplayGameMatrix(void) {
-  matrix.displayText("SCORE", 10, 26, 2, 255, 0, 0, "fonts/9x18B.bdf", 1, 0);
-  matrix.displayText(String(Wynik).c_str(), 192/2 - 10, 16, 2, 255, 0, 0, "fonts/ComicNeue-Bold-48.bdf", 2, 0);
+  matrix.deleteElement(0); //grafika w background Choinka
+  matrix.displayText("RECORD", 5, 26, 2, 255, 0, 0, "fonts/9x18B.bdf", 1, 0);
+  matrix.displayText(String(Fram.Record).c_str(), 192/2 - String(Wynik).length()*10, 16, 2, 255, 0, 0, "fonts/ComicNeue-Bold-48.bdf", 2, 0);
 
-  matrix.displayText("RECORD", 10, 72, 2, 0, 255, 0, "fonts/9x18B.bdf", 3, 0);
-  matrix.displayText(String(Fram.Record).c_str(), 192/2 - 10, 62, 2, 0, 255, 0, "fonts/ComicNeue-Bold-48.bdf", 4, 0);
+  matrix.displayText("SCORE", 5, 72, 2, 0, 255, 0, "fonts/9x18B.bdf", 3, 0);
+  matrix.displayText(String(Wynik).c_str(), 192/2 - String(Wynik).length()*10, 62, 2, 0, 255, 0, "fonts/ComicNeue-Bold-48.bdf", 4, 0);
 
-  matrix.displayText("Credit", 10, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 5, 0);
+  matrix.displayText("Credit", 5, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 5, 0);
   matrix.displayText(String(Fram.Credit).c_str(), 192/2 - 10, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 6, 0);
 }
 

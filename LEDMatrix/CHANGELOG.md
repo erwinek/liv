@@ -5,6 +5,52 @@ Wszystkie istotne zmiany w projekcie LEDMatrix są dokumentowane w tym pliku.
 Format bazuje na [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 a numeracja wersji zgodna z [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-10-20
+
+### ⚠️ BREAKING CHANGE
+- **Nowy protokół z preambułą (jak w Ethernet)**
+  - Format ramki: `[0xAA][0x55][0xAA][0x55][packet...]` zamiast `[0xAA][packet...]`
+  - **4-bajtowa preambuła** dla niezawodnej synchronizacji
+  - **SOF zmieniony:** 0xAA → 0x55
+  - **EOF zmieniony:** 0x55 → 0xAA
+  - **WYMAGA** aktualizacji zarówno ESP32 jak i Raspberry Pi!
+
+### ✨ Dodano
+- **Nowa komenda `deleteElement(elementId)`** - usuwa konkretny element po ID
+  - Precyzyjne zarządzanie pojedynczymi obiektami graficznymi
+  - Nie wpływa na pozostałe elementy
+  - Idealne do dynamicznych menu, animacji, powiadomień
+  - Dokumentacja w `DELETE_ELEMENT_FEATURE.md`
+- Preambuła synchronizacyjna (3 bajty: 0xAA 0x55 0xAA) przed każdą ramką
+- Znacznie lepsza odporność na szumy i śmieci na linii
+- Zwiększony bufor odbiorczy: 512 → 2048 bajtów (RasPi)
+- Inteligentne zachowywanie ostatnich 3 bajtów przy czyszczeniu śmieci
+
+### 🐛 Naprawiono
+- **KRYTYCZNE:** Gubione ramki przy dużym ruchu/szumach na linii
+  - Pojedynczy bajt SOF (0xAA) był niewystarczający
+  - Teraz wzór `0xAA 0x55 0xAA 0x55` - bardzo unikalny
+  - Prawdopodobieństwo fałszywego wykrycia: 1/16 777 216
+
+### 📚 Dokumentacja
+- Nowy dokument `PREAMBLE_PROTOCOL.md` opisujący protokół z preambułą
+- Porównanie z Ethernet Preamble
+- Szczegółowe testy i przykłady
+
+## [1.1.1] - 2025-10-20
+
+### 🐛 Naprawiono
+- **KRYTYCZNE:** Gubione ramki przy wysyłaniu wielu komend pod rząd
+  - Dodano 5ms opóźnienie po każdej ramce w `sendPacket()`
+  - Nawet z `flush()`, przy 1Mbps ramki mogą się przeplatać bez opóźnienia
+  - Rozwiązuje problem z `clearScreen()` i brakiem reakcji na komendy
+- Poprawiono wykrywanie uszkodzonych ramek w `SerialProtocol.cpp`
+  - Usunięto fałszywe wykrywanie SOF wewnątrz payloadu (payload może legalnie zawierać 0xAA)
+  - Bazowanie tylko na strukturze ramki (SOF...EOF)
+
+### 🔧 Zmieniono
+- Dodano szczegółowe debugowanie w `SerialProtocol.cpp` dla diagnozowania problemów komunikacji
+
 ## [1.1.0] - 2025-10-19
 
 ### ✨ Dodano

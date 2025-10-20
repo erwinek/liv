@@ -102,3 +102,4 @@ Jeśli nadal masz problemy, sprawdź:
 2. Czy wartość `blinkIntervalMs` jest > 0
 3. Logi na konsoli: szukaj `blink=XXXms`
 
+

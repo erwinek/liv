@@ -219,3 +219,4 @@ void loop() {
 **Data naprawy:** 2025-10-19  
 **Wersja:** 1.1.0 (z poprawką)
 
+

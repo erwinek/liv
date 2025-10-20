@@ -130,13 +130,22 @@ void SerialProtocol::processData() {
     uint8_t byte;
     ssize_t bytes_read = read(serial_fd, &byte, 1);
     
+    int bytes_received_this_call = 0;
     // Reduce debug output during normal operation (only show non-zero bytes or when buffer is building)
     while (bytes_read > 0) {
+        bytes_received_this_call++;
+        if (byte == PROTOCOL_SOF) {
+            std::cout << "*** SOF received (0xAA) at buffer position " << rx_buffer.size() << std::endl;
+        }
         if (byte != 0 || rx_buffer.empty()) {
-            //std::cout << "Received byte: 0x" << std::hex << (int)byte << std::dec << std::endl;
+            std::cout << "RX[" << rx_buffer.size() << "]: 0x" << std::hex << (int)byte << std::dec << std::endl;
         }
         addToBuffer(byte);
         bytes_read = read(serial_fd, &byte, 1);
+    }
+    
+    if (bytes_received_this_call > 0) {
+        std::cout << "=== Received " << bytes_received_this_call << " bytes total ===" << std::endl;
     }
     
     if (rx_buffer.size() > 0) {
@@ -156,6 +165,10 @@ void SerialProtocol::sendResponse(uint8_t screen_id, ResponseCode code, const ui
         memcpy(response.data, data, data_len);
     }
     
+    // Send preamble first (3 bytes)
+    uint8_t preamble[3] = {PROTOCOL_PREAMBLE_1, PROTOCOL_PREAMBLE_2, PROTOCOL_PREAMBLE_3};
+    write(serial_fd, preamble, 3);
+    
     ProtocolPacket packet;
     packet.sof = PROTOCOL_SOF;
     packet.screen_id = screen_id;
@@ -168,7 +181,10 @@ void SerialProtocol::sendResponse(uint8_t screen_id, ResponseCode code, const ui
     memcpy(packet.payload, &response, 4 + data_len);
     packet.checksum = calculateChecksum(packet.payload, packet.payload_length);
     
-    write(serial_fd, &packet, sizeof(ProtocolPacket));
+    ssize_t written = write(serial_fd, &packet, sizeof(ProtocolPacket));
+    std::cout << ">>> RESPONSE SENT: screen_id=" << (int)screen_id 
+              << " code=" << (int)code 
+              << " bytes_written=" << (3 + written) << " (including preamble)" << std::endl;
 }
 
 bool SerialProtocol::hasPendingCommand() {
@@ -288,6 +304,10 @@ void SerialProtocol::parsePacket(const ProtocolPacket* packet) {
             std::cout << "Parsing CLEAR_TEXT command" << std::endl;
             command = parseClearCommand(packet->payload, packet->payload_length, packet->screen_id, packet->command);
             break;
+        case CMD_DELETE_ELEMENT:
+            std::cout << "Parsing DELETE_ELEMENT command" << std::endl;
+            command = parseDeleteElementCommand(packet->payload, packet->payload_length, packet->screen_id, packet->command);
+            break;
         case CMD_SET_BRIGHTNESS:
             std::cout << "Parsing BRIGHTNESS command" << std::endl;
             command = parseBrightnessCommand(packet->payload, packet->payload_length);
@@ -313,11 +333,11 @@ void SerialProtocol::parsePacket(const ProtocolPacket* packet) {
 void SerialProtocol::addToBuffer(uint8_t byte) {
     rx_buffer.push_back(byte);
     
-    // Keep buffer size reasonable - limit to 2x max packet size (262 bytes)
-    // This helps with finding SOF more reliably
-    if (rx_buffer.size() > 512) {
-        std::cout << "Buffer overflow! Removing 256 bytes and flushing UART" << std::endl;
-        rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + 256);
+    // Increased buffer size to handle high traffic and noise on the line
+    // With preamble, we need more space for synchronization
+    if (rx_buffer.size() > 2048) {
+        std::cout << "Buffer overflow! Removing 512 bytes and flushing UART" << std::endl;
+        rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + 512);
         // Buffer overflow suggests ESP32 restart or heavy corruption
         flushUartBuffers();
     }
@@ -332,61 +352,72 @@ void SerialProtocol::flushUartBuffers() {
 
 void SerialProtocol::processBuffer() {
     // Aggressive garbage removal for better synchronization
+    // Look for preamble pattern: [0xAA][0x55][0xAA][0x55] (SOF)
     while (!rx_buffer.empty()) {
-        // Find first SOF marker
-        size_t sof_position = rx_buffer.size();
-        for (size_t i = 0; i < rx_buffer.size(); i++) {
-            if (rx_buffer[i] == PROTOCOL_SOF) {
-                sof_position = i;
+        // Find preamble + SOF sequence
+        size_t preamble_position = rx_buffer.size();
+        for (size_t i = 0; i + 3 < rx_buffer.size(); i++) {
+            // Look for: PREAMBLE_1(0xAA), PREAMBLE_2(0x55), PREAMBLE_3(0xAA), SOF(0x55)
+            if (rx_buffer[i]   == PROTOCOL_PREAMBLE_1 &&
+                rx_buffer[i+1] == PROTOCOL_PREAMBLE_2 &&
+                rx_buffer[i+2] == PROTOCOL_PREAMBLE_3 &&
+                rx_buffer[i+3] == PROTOCOL_SOF) {
+                preamble_position = i;
+                std::cout << "*** PREAMBLE+SOF found at position " << i << " [0xAA 0x55 0xAA 0x55]" << std::endl;
                 break;
             }
         }
         
-        // If no SOF found, buffer contains only garbage - clear it all
-        // Also flush UART buffers to remove any remaining garbage from ESP32 restart
-        if (sof_position == rx_buffer.size()) {
+        // If no valid preamble+SOF found, buffer contains only garbage
+        if (preamble_position == rx_buffer.size()) {
             size_t garbage_size = rx_buffer.size();
-            std::cout << "No SOF found in buffer, clearing " << garbage_size << " bytes of garbage" << std::endl;
             
-            // Detect potential ESP32 restart
-            detectESP32Restart(garbage_size);
-            
-            rx_buffer.clear();
-            flushUartBuffers();  // Clear system UART buffers too!
+            // Keep last 3 bytes in case preamble is being received
+            if (garbage_size > 3) {
+                std::cout << "No valid preamble+SOF in buffer, clearing " << (garbage_size - 3) << " bytes of garbage (keeping last 3)" << std::endl;
+                rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + (garbage_size - 3));
+                
+                // Detect potential ESP32 restart
+                if (garbage_size > 100) {
+                    detectESP32Restart(garbage_size);
+                    flushUartBuffers();
+                }
+            }
             return;
         }
         
-        // Remove any garbage before SOF
-        if (sof_position > 0) {
-            std::cout << "Removing " << sof_position << " bytes of garbage before SOF" << std::endl;
-            rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + sof_position);
-            // If we removed a lot of garbage (>100 bytes), flush UART buffers too
-            // This helps recovery after ESP32 restart
-            if (sof_position > 100) {
+        // Remove any garbage before preamble
+        if (preamble_position > 0) {
+            std::cout << "Removing " << preamble_position << " bytes of garbage before preamble" << std::endl;
+            rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + preamble_position);
+            if (preamble_position > 100) {
                 flushUartBuffers();
             }
         }
         
-        // Now SOF is at position 0
-        std::cout << "Found SOF at position 0" << std::endl;
+        // Now preamble+SOF is at position 0-3
+        // Skip preamble (3 bytes) to get to actual packet start (SOF at position 3)
+        std::cout << "Preamble verified, SOF at position 3" << std::endl;
         
-        // Check if we have enough data for packet header (SOF + screen_id + command + payload_length)
-        if (rx_buffer.size() < 4) {
-            std::cout << "Not enough data for header yet (have " << rx_buffer.size() << " bytes)" << std::endl;
+        // Check if we have enough data for packet header
+        // Preamble (3) + SOF (1) + screen_id (1) + command (1) + payload_length (1) = 7 bytes minimum
+        if (rx_buffer.size() < 7) {
+            std::cout << "Not enough data for header yet (have " << rx_buffer.size() << " bytes, need 7)" << std::endl;
             return; // Wait for more data
         }
         
-        uint8_t screen_id = rx_buffer[1];
-        uint8_t command = rx_buffer[2];
-        uint8_t payload_length = rx_buffer[3];
+        // Read header (skip preamble, start from SOF at position 3)
+        uint8_t screen_id = rx_buffer[4];       // Position 4 (after preamble+SOF)
+        uint8_t command = rx_buffer[5];         // Position 5
+        uint8_t payload_length = rx_buffer[6];  // Position 6
         
         std::cout << "Packet header: screen_id=" << (int)screen_id 
                   << " command=" << (int)command 
                   << " payload_length=" << (int)payload_length << std::endl;
         
-        // Note: payload_length is uint8_t (0-255), so max packet size is 261 bytes
-        // Calculate total packet size: SOF + screen_id + command + payload_length + payload + checksum + EOF
-        size_t total_packet_size = 4 + payload_length + 2; // header + payload + checksum + EOF
+        // Calculate total packet size including preamble
+        // Preamble (3) + SOF (1) + screen_id (1) + command (1) + payload_length (1) + payload + checksum (1) + EOF (1)
+        size_t total_packet_size = 3 + 4 + payload_length + 2; // preamble + header + payload + checksum + EOF
         
         // Check if we have complete packet
         if (rx_buffer.size() < total_packet_size) {
@@ -397,9 +428,9 @@ void SerialProtocol::processBuffer() {
         // Check EOF at the calculated position
         size_t eof_position = total_packet_size - 1;
         if (rx_buffer[eof_position] != PROTOCOL_EOF) {
-            std::cout << "EOF mismatch: expected 0x55, got 0x" << std::hex << (int)rx_buffer[eof_position] << std::dec 
-                      << " - this SOF is false, removing it" << std::endl;
-            // This SOF was false positive, remove it and continue searching
+            std::cout << "EOF mismatch: expected 0xAA, got 0x" << std::hex << (int)rx_buffer[eof_position] << std::dec 
+                      << " - this preamble was false positive, removing first byte" << std::endl;
+            // This preamble was false positive, remove first byte and continue searching
             rx_buffer.erase(rx_buffer.begin());
             continue;
         }
@@ -407,14 +438,15 @@ void SerialProtocol::processBuffer() {
         std::cout << "Complete valid packet found, parsing..." << std::endl;
         
         // Create a temporary ProtocolPacket for parsing
+        // Skip preamble (3 bytes), start from SOF (position 3)
         ProtocolPacket packet;
-        packet.sof = rx_buffer[0];
-        packet.screen_id = rx_buffer[1];
-        packet.command = rx_buffer[2];
-        packet.payload_length = rx_buffer[3];
+        packet.sof = rx_buffer[3];              // SOF at position 3
+        packet.screen_id = rx_buffer[4];        // screen_id at position 4
+        packet.command = rx_buffer[5];          // command at position 5
+        packet.payload_length = rx_buffer[6];   // payload_length at position 6
         
-        // Copy payload
-        memcpy(packet.payload, &rx_buffer[4], payload_length);
+        // Copy payload (starts at position 7)
+        memcpy(packet.payload, &rx_buffer[7], payload_length);
         
         // Set checksum and EOF
         packet.checksum = rx_buffer[eof_position - 1];
@@ -422,7 +454,7 @@ void SerialProtocol::processBuffer() {
         
         parsePacket(&packet);
         
-        // Remove processed packet from buffer
+        // Remove processed packet from buffer (including preamble)
         rx_buffer.erase(rx_buffer.begin(), rx_buffer.begin() + total_packet_size);
         std::cout << "Packet processed and removed, buffer now has " << rx_buffer.size() << " bytes" << std::endl;
         
@@ -541,6 +573,31 @@ void* SerialProtocol::parseClearCommand(const uint8_t* payload, uint8_t length, 
     
     std::cout << "parseClearCommand: created command with screen_id=" << (int)cmd->screen_id 
               << " command=" << (int)cmd->command << std::endl;
+    
+    return cmd;
+}
+
+void* SerialProtocol::parseDeleteElementCommand(const uint8_t* payload, uint8_t length, uint8_t packet_screen_id, uint8_t packet_command) {
+    DeleteElementCommand* cmd = (DeleteElementCommand*)malloc(sizeof(DeleteElementCommand));
+    if (!cmd) return nullptr;
+    
+    if (length >= sizeof(DeleteElementCommand)) {
+        // Payload contains full command structure
+        memcpy(cmd, payload, sizeof(DeleteElementCommand));
+    } else if (length >= 1) {
+        // Payload contains only element_id
+        cmd->screen_id = packet_screen_id;
+        cmd->command = packet_command;
+        cmd->element_id = payload[0];
+    } else {
+        // Invalid - need at least element_id
+        free(cmd);
+        return nullptr;
+    }
+    
+    std::cout << "parseDeleteElementCommand: screen_id=" << (int)cmd->screen_id 
+              << " command=" << (int)cmd->command 
+              << " element_id=" << (int)cmd->element_id << std::endl;
     
     return cmd;
 }

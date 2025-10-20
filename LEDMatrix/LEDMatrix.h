@@ -12,9 +12,12 @@
 
 #include "Arduino.h"
 
-// Stałe protokołu
-#define PROTOCOL_SOF 0xAA
-#define PROTOCOL_EOF 0x55
+// Stałe protokołu - Preamble for reliable synchronization (like Ethernet)
+#define PROTOCOL_PREAMBLE_1 0xAA  // Preamble byte 1
+#define PROTOCOL_PREAMBLE_2 0x55  // Preamble byte 2
+#define PROTOCOL_PREAMBLE_3 0xAA  // Preamble byte 3
+#define PROTOCOL_SOF 0x55         // Start of Frame (after preamble)
+#define PROTOCOL_EOF 0xAA         // End of Frame
 #define PROTOCOL_MAX_PAYLOAD 150
 
 // ID ekranu (domyślnie 1)
@@ -27,6 +30,7 @@
 #define CMD_SET_BRIGHTNESS 0x04
 #define CMD_GET_STATUS 0x05
 #define CMD_CLEAR_TEXT 0x06
+#define CMD_DELETE_ELEMENT 0x07
 
 class LEDMatrix {
 public:
@@ -39,6 +43,7 @@ public:
     // Podstawowe funkcje
     void clearScreen();
     void clearText();  // Clear only text elements, keep GIFs
+    void deleteElement(uint8_t elementId);  // Delete specific element by ID
     void setBrightness(uint8_t brightness);
     
     // Wyświetlanie tekstu

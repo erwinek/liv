@@ -27,6 +27,14 @@ void LEDMatrix::clearText() {
     sendPacket(CMD_CLEAR_TEXT, nullptr, 0);
 }
 
+// Usuń konkretny element po ID
+void LEDMatrix::deleteElement(uint8_t elementId) {
+    uint8_t payload[1];
+    payload[0] = elementId;
+    
+    sendPacket(CMD_DELETE_ELEMENT, payload, 1);
+}
+
 // Ustaw jasność
 void LEDMatrix::setBrightness(uint8_t brightness) {
     if (brightness > 100) brightness = 100;
@@ -150,8 +158,13 @@ void LEDMatrix::sendPacket(uint8_t command, const uint8_t* payload, uint8_t payl
     // Debug - wyświetl pakiet (zakomentowane, bo koliduje z komunikacją przez ten sam Serial)
     // printPacket(command, payload, payloadLength);
     
+    // Wysyłaj preambułę (3 bajty) dla niezawodnej synchronizacji
+    _serial->write(PROTOCOL_PREAMBLE_1);    // Preamble byte 1 (0xAA)
+    _serial->write(PROTOCOL_PREAMBLE_2);    // Preamble byte 2 (0x55)
+    _serial->write(PROTOCOL_PREAMBLE_3);    // Preamble byte 3 (0xAA)
+    
     // Buduj i wysyłaj pakiet
-    _serial->write(PROTOCOL_SOF);           // Start of Frame
+    _serial->write(PROTOCOL_SOF);           // Start of Frame (0x55)
     _serial->write(_screenId);              // Screen ID
     _serial->write(command);                // Command
     _serial->write(payloadLength);          // Payload Length
@@ -174,6 +187,11 @@ void LEDMatrix::sendPacket(uint8_t command, const uint8_t* payload, uint8_t payl
     
     // Flush - upewnij się, że wszystkie dane zostały wysłane
     _serial->flush();
+    
+    // Critical delay to prevent frame overlap at high baudrate
+    // At 1Mbps, even with flush(), back-to-back frames can interfere
+    // 5ms gives receiver time to process the frame
+    delay(5);
 }
 
 // Obliczanie sumy kontrolnej (XOR)

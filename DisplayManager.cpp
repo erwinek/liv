@@ -211,6 +211,9 @@ void DisplayManager::processSerialCommands() {
             case CMD_CLEAR_TEXT:
                 processClearTextCommand((ClearCommand*)command); // Same structure as ClearCommand
                 break;
+            case CMD_DELETE_ELEMENT:
+                processDeleteElementCommand((DeleteElementCommand*)command);
+                break;
             case CMD_SET_BRIGHTNESS:
                 processBrightnessCommand((BrightnessCommand*)command);
                 break;
@@ -896,6 +899,40 @@ void DisplayManager::processClearTextCommand(ClearCommand* cmd) {
     std::cout << "Processing CLEAR_TEXT command" << std::endl;
     clearText();
     serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
+}
+
+void DisplayManager::processDeleteElementCommand(DeleteElementCommand* cmd) {
+    if (!cmd) return;
+    
+    std::cout << "Processing DELETE_ELEMENT command: element_id=" << (int)cmd->element_id << std::endl;
+    
+    bool found = false;
+    for (auto it = elements.begin(); it != elements.end(); ++it) {
+        if (it->element_id == cmd->element_id) {
+            // Clear cache for this element
+            if (it->type == DisplayElement::GIF) {
+                command_cache.gif_checksums[it->element_id] = 0;
+            } else if (it->type == DisplayElement::TEXT) {
+                command_cache.text_checksums[it->element_id] = 0;
+            }
+            
+            std::cout << "Deleting element ID=" << (int)cmd->element_id 
+                      << " type=" << (it->type == DisplayElement::GIF ? "GIF" : "TEXT") << std::endl;
+            
+            elements.erase(it);
+            display_dirty = true;
+            found = true;
+            break;
+        }
+    }
+    
+    if (found) {
+        std::cout << "Element deleted successfully. Remaining elements: " << elements.size() << std::endl;
+        serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
+    } else {
+        std::cout << "Element ID=" << (int)cmd->element_id << " not found" << std::endl;
+        serial_protocol.sendResponse(cmd->screen_id, RESP_ERROR);
+    }
 }
 
 void DisplayManager::processBrightnessCommand(BrightnessCommand* cmd) {

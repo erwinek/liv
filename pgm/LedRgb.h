@@ -176,7 +176,7 @@ void effect_theater_chase(CRGB *leds, int num_leds, uint8_t gHue) {
 
 void circleLedStr2(void) {
 
-  printf("\n circleLedStr2 LiczbaLedBoki=%d LiczbaLedBramka=%d LiczbaLedCzacha=%d", LiczbaLedBoki, LiczbaLedBramka, LiczbaLedCzacha);
+  //printf("\n circleLedStr2 LiczbaLedBoki=%d LiczbaLedBramka=%d LiczbaLedCzacha=%d", LiczbaLedBoki, LiczbaLedBramka, LiczbaLedCzacha);
 
   if(Fram.BoxerModel==MONSTER) {
     static uint8_t starthue = 0;

@@ -179,6 +179,7 @@ private:
     void processTextCommand(TextCommand* cmd);
     void processClearCommand(ClearCommand* cmd);
     void processClearTextCommand(ClearCommand* cmd);
+    void processDeleteElementCommand(DeleteElementCommand* cmd);
     void processBrightnessCommand(BrightnessCommand* cmd);
     void processStatusCommand(StatusCommand* cmd);
 };

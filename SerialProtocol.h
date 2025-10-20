@@ -4,9 +4,12 @@
 #include <string>
 #include <vector>
 
-// Protocol constants
-#define PROTOCOL_SOF 0xAA  // Start of Frame
-#define PROTOCOL_EOF 0x55  // End of Frame
+// Protocol constants - Preamble for reliable synchronization (like Ethernet)
+#define PROTOCOL_PREAMBLE_1 0xAA  // Preamble byte 1
+#define PROTOCOL_PREAMBLE_2 0x55  // Preamble byte 2  
+#define PROTOCOL_PREAMBLE_3 0xAA  // Preamble byte 3
+#define PROTOCOL_SOF 0x55         // Start of Frame (after preamble)
+#define PROTOCOL_EOF 0xAA         // End of Frame
 #define PROTOCOL_MAX_PAYLOAD 256
 #define PROTOCOL_MAX_FILENAME 64
 #define PROTOCOL_MAX_TEXT_LINES 10
@@ -20,6 +23,7 @@ typedef enum {
     CMD_SET_BRIGHTNESS = 0x04,
     CMD_GET_STATUS = 0x05,
     CMD_CLEAR_TEXT = 0x06,
+    CMD_DELETE_ELEMENT = 0x07,  // Delete specific element by ID
     CMD_RESPONSE = 0x80
 } CommandType;
 
@@ -78,6 +82,13 @@ typedef struct {
     uint8_t screen_id;
     uint8_t command;
 } __attribute__((packed)) StatusCommand;
+
+// Delete element command structure
+typedef struct {
+    uint8_t screen_id;
+    uint8_t command;
+    uint8_t element_id;    // ID of element to delete
+} __attribute__((packed)) DeleteElementCommand;
 
 // Response structure
 typedef struct {
@@ -159,6 +170,7 @@ private:
     void* parseGifCommand(const uint8_t* payload, uint8_t length);
     void* parseTextCommand(const uint8_t* payload, uint8_t length);
     void* parseClearCommand(const uint8_t* payload, uint8_t length, uint8_t packet_screen_id, uint8_t packet_command);
+    void* parseDeleteElementCommand(const uint8_t* payload, uint8_t length, uint8_t packet_screen_id, uint8_t packet_command);
     void* parseBrightnessCommand(const uint8_t* payload, uint8_t length);
     void* parseStatusCommand(const uint8_t* payload, uint8_t length);
 };
