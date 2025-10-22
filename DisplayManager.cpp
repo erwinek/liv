@@ -145,14 +145,14 @@ bool DisplayManager::init() {
         return false;
     }
     
-    // Initialize TCP protocol (using ser2net for shared serial port access)
-    if (!serial_protocol.init("127.0.0.1", 3333)) {
-        std::cerr << "Warning: Failed to initialize TCP protocol on 127.0.0.1:3333" << std::endl;
-        std::cerr << "Make sure ser2net is running and configured for port 3333" << std::endl;
+    // Initialize serial protocol (direct ttyUSB0 access)
+    if (!serial_protocol.init("/dev/ttyUSB0")) {
+        std::cerr << "Warning: Failed to initialize serial protocol on /dev/ttyUSB0" << std::endl;
+        std::cerr << "Make sure ESP32 is connected and you have permission to access the port" << std::endl;
         // Continue without protocol - not critical for basic functionality
     } else {
         // Send test data to verify communication
-        std::cout << "Sending test data to verify TCP communication..." << std::endl;
+        std::cout << "Sending test data to verify serial communication..." << std::endl;
         serial_protocol.sendTestData();
     }
     

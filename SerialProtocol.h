@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include <netinet/in.h>
+#include <termios.h>
 
 // Protocol constants - Preamble for reliable synchronization (like Ethernet)
 #define PROTOCOL_PREAMBLE_1 0xAA  // Preamble byte 1
@@ -116,8 +116,8 @@ public:
     SerialProtocol();
     ~SerialProtocol();
     
-    // Initialize TCP communication (now uses TCP instead of direct serial)
-    bool init(const char* host, int port);
+    // Initialize serial communication (direct ttyUSB0 access)
+    bool init(const char* device_path);
     
     // Process incoming data
     void processData();
@@ -137,16 +137,15 @@ public:
     // Cleanup command memory
     void freeCommand(void* command);
     
-    // Close TCP connection
+    // Close serial connection
     void close();
     
     // Test function to send test data
     void sendTestData();
 
 private:
-    int tcp_socket;
-    struct sockaddr_in server_addr;
-    socklen_t server_addr_len;
+    int serial_fd;
+    struct termios old_tio;
     std::vector<uint8_t> rx_buffer;
     std::vector<void*> pending_commands;
     

@@ -6,15 +6,13 @@
 #include <iostream>
 #include <iomanip>
 #include <time.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
+#include <sys/ioctl.h>
 
-SerialProtocol::SerialProtocol() : tcp_socket(-1), 
+SerialProtocol::SerialProtocol() : serial_fd(-1), 
     last_garbage_time_us(0),
     esp32_restart_detected_time_us(0),
     esp32_restart_grace_period(false) {
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr_len = sizeof(server_addr);
+    memset(&old_tio, 0, sizeof(old_tio));
 }
 
 SerialProtocol::~SerialProtocol() {
@@ -25,48 +23,49 @@ SerialProtocol::~SerialProtocol() {
     }
 }
 
-bool SerialProtocol::init(const char* host, int port) {
-    // Create TCP socket
-    tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (tcp_socket < 0) {
-        std::cerr << "Failed to create TCP socket" << std::endl;
+bool SerialProtocol::init(const char* device_path) {
+    // Open serial port
+    serial_fd = open(device_path, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (serial_fd < 0) {
+        std::cerr << "Failed to open serial port: " << device_path << std::endl;
+        perror("open");
         return false;
     }
     
-    // Configure server address
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-    
-    // Convert host address
-    if (inet_pton(AF_INET, host, &server_addr.sin_addr) <= 0) {
-        std::cerr << "Invalid address: " << host << std::endl;
+    // Save current terminal settings
+    if (tcgetattr(serial_fd, &old_tio) < 0) {
+        std::cerr << "Failed to get serial port attributes" << std::endl;
         close();
         return false;
     }
     
-    // Connect to server
-    if (connect(tcp_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        std::cerr << "Failed to connect to " << host << ":" << port << std::endl;
-        std::cerr << "Make sure ser2net is running" << std::endl;
+    // Configure serial port
+    struct termios tio;
+    memset(&tio, 0, sizeof(tio));
+    
+    // Set baud rate to 1000000 (1Mbps)
+    cfsetispeed(&tio, B1000000);
+    cfsetospeed(&tio, B1000000);
+    
+    // 8N1 mode
+    tio.c_cflag = B1000000 | CS8 | CLOCAL | CREAD;
+    tio.c_iflag = IGNPAR;
+    tio.c_oflag = 0;
+    tio.c_lflag = 0;
+    
+    // Non-blocking read
+    tio.c_cc[VTIME] = 0;
+    tio.c_cc[VMIN] = 0;
+    
+    // Flush port and apply settings
+    tcflush(serial_fd, TCIFLUSH);
+    if (tcsetattr(serial_fd, TCSANOW, &tio) < 0) {
+        std::cerr << "Failed to set serial port attributes" << std::endl;
         close();
         return false;
     }
     
-    // Set socket to non-blocking mode after connection
-    int flags = fcntl(tcp_socket, F_GETFL, 0);
-    if (flags == -1) {
-        std::cerr << "Failed to get socket flags" << std::endl;
-        close();
-        return false;
-    }
-    if (fcntl(tcp_socket, F_SETFL, flags | O_NONBLOCK) == -1) {
-        std::cerr << "Failed to set socket to non-blocking mode" << std::endl;
-        close();
-        return false;
-    }
-    
-    std::cout << "TCP protocol initialized to " << host << ":" << port << std::endl;
-    std::cout << "Using ser2net for shared serial port access" << std::endl;
+    std::cout << "Serial protocol initialized on " << device_path << " at 1000000 baud" << std::endl;
     return true;
 }
 
@@ -79,7 +78,7 @@ void SerialProtocol::processData() {
         if (elapsed < RESTART_GRACE_PERIOD_US) {
             // Still in grace period - just flush and ignore data
             uint8_t dummy[1024];
-            ssize_t bytes_read = recv(tcp_socket, dummy, sizeof(dummy), 0);
+            ssize_t bytes_read = read(serial_fd, dummy, sizeof(dummy));
             if (bytes_read > 0) {
                 std::cout << "ESP32 restart grace period: ignoring " << bytes_read 
                           << " bytes (remaining: " << (RESTART_GRACE_PERIOD_US - elapsed) / 1000 << " ms)" << std::endl;
@@ -94,12 +93,12 @@ void SerialProtocol::processData() {
         }
     }
     
-    // Read data from TCP socket
+    // Read data from serial port
     uint8_t buffer[1024];
-    ssize_t bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
+    ssize_t bytes_read = read(serial_fd, buffer, sizeof(buffer));
     
     if (bytes_read > 0) {
-        std::cout << "=== Received " << bytes_read << " bytes via TCP ===" << std::endl;
+        std::cout << "=== Received " << bytes_read << " bytes from serial port ===" << std::endl;
         
         // Add all received bytes to buffer
         for (ssize_t i = 0; i < bytes_read; i++) {
@@ -153,10 +152,10 @@ void SerialProtocol::sendResponse(uint8_t screen_id, ResponseCode code, const ui
     // Copy packet after preamble
     memcpy(send_buffer + 3, &packet, sizeof(ProtocolPacket));
     
-    // Send via TCP
-    ssize_t sent = send(tcp_socket, send_buffer, 3 + sizeof(ProtocolPacket), 0);
+    // Send via serial port
+    ssize_t sent = write(serial_fd, send_buffer, 3 + sizeof(ProtocolPacket));
     
-    std::cout << ">>> RESPONSE SENT via TCP: screen_id=" << (int)screen_id 
+    std::cout << ">>> RESPONSE SENT via serial port: screen_id=" << (int)screen_id 
               << " code=" << (int)code 
               << " bytes_sent=" << sent << " (including preamble)" << std::endl;
 }
@@ -189,26 +188,28 @@ void SerialProtocol::freeCommand(void* command) {
 }
 
 void SerialProtocol::close() {
-    if (tcp_socket != -1) {
-        ::close(tcp_socket);
-        tcp_socket = -1;
+    if (serial_fd != -1) {
+        // Restore old terminal settings
+        tcsetattr(serial_fd, TCSANOW, &old_tio);
+        ::close(serial_fd);
+        serial_fd = -1;
     }
 }
 
 void SerialProtocol::sendTestData() {
-    if (tcp_socket == -1) {
-        std::cout << "TCP socket not open, cannot send test data" << std::endl;
+    if (serial_fd == -1) {
+        std::cout << "Serial port not open, cannot send test data" << std::endl;
         return;
     }
     
     // Send a simple test message
     const char* test_msg = "LED_TEST\r\n";
-    ssize_t bytes_sent = send(tcp_socket, test_msg, strlen(test_msg), 0);
+    ssize_t bytes_sent = write(serial_fd, test_msg, strlen(test_msg));
     
     if (bytes_sent > 0) {
-        std::cout << "Sent test data via TCP: " << test_msg << " (" << bytes_sent << " bytes)" << std::endl;
+        std::cout << "Sent test data via serial port: " << test_msg << " (" << bytes_sent << " bytes)" << std::endl;
     } else {
-        std::cout << "Failed to send test data via TCP" << std::endl;
+        std::cout << "Failed to send test data via serial port" << std::endl;
     }
 }
 

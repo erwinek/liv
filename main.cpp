@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
 
     printf("LED Display Controller started\n");
     printf("Screen size: %dx%d\n", matrix->width(), matrix->height());
-    printf("Protocol: TCP port 3333 (via ser2net sharing ttyUSB0)\n");
+    printf("Protocol: Direct serial on /dev/ttyUSB0 at 1000000 baud\n");
     printf("Commands: LOAD_GIF, DISPLAY_TEXT, CLEAR_SCREEN, SET_BRIGHTNESS, GET_STATUS\n");
     printf("Usage: %s [gif1 gif2 gif3 gif4] [--no-diagnostics]\n", argv[0]);
     printf("Press Ctrl+C to exit\n");
