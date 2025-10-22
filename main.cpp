@@ -1,5 +1,6 @@
 #include "LedImgViewer.h"
 #include "DisplayManager.h"
+#include "ScreenConfig.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,16 +19,49 @@ int main(int argc, char *argv[]) {
     // Initialize ImageMagick
     Magick::InitializeMagick(argv[0]);
 
-    // Configure RGB matrix
+    // Load screen configuration
+    ScreenConfig config;
+    std::string config_file;
+    bool config_loaded = false;
+    
+    // Parse command line arguments for --config
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--config") == 0 && i + 1 < argc) {
+            config_file = argv[i + 1];
+            if (config.loadFromFile(config_file)) {
+                config_loaded = true;
+                printf("Configuration loaded from: %s\n", config_file.c_str());
+            } else {
+                fprintf(stderr, "Failed to load config file: %s\n", config_file.c_str());
+                fprintf(stderr, "Using default configuration\n");
+            }
+            break;
+        }
+    }
+    
+    if (!config_loaded) {
+        printf("No config file specified, using default configuration (192x192, ID=1)\n");
+    }
+    
+    // Print configuration
+    config.print();
+
+    // Configure RGB matrix from config
     rgb_matrix::RGBMatrix::Options matrix_options;
     rgb_matrix::RuntimeOptions runtime_opt;
 
-    matrix_options.rows = 64;
-    matrix_options.cols = 64;
-    matrix_options.chain_length = 3;
-    matrix_options.parallel = 3;
-    matrix_options.hardware_mapping = "regular";
-    runtime_opt.gpio_slowdown = 3;
+    matrix_options.rows = config.rows;
+    matrix_options.cols = config.cols;
+    matrix_options.chain_length = config.chain_length;
+    matrix_options.parallel = config.parallel;
+    matrix_options.hardware_mapping = config.hardware_mapping.c_str();
+    
+    // Set pixel mapper if specified (e.g., "V-mapper" for vertical screens)
+    if (!config.pixel_mapper.empty()) {
+        matrix_options.pixel_mapper_config = config.pixel_mapper.c_str();
+    }
+    
+    runtime_opt.gpio_slowdown = config.gpio_slowdown;
 
     runtime_opt.drop_priv_user = getenv("SUDO_UID");
     runtime_opt.drop_priv_group = getenv("SUDO_GID");
@@ -40,15 +74,17 @@ int main(int argc, char *argv[]) {
     }
 
     // Create display manager
-    DisplayManager display_manager(matrix);
-    if (!display_manager.init()) {
+    // If using V-mapper, we need to swap dimensions because V-mapper rotates the display
+    bool swap_dimensions = (config.pixel_mapper == "V-mapper");
+    DisplayManager display_manager(matrix, swap_dimensions, config.screen_id);
+    if (!display_manager.init(config.serial_port)) {
         fprintf(stderr, "Failed to initialize display manager\n");
         delete matrix;
         return 1;
     }
     
-    // Check for --no-diagnostics flag
-    bool show_diagnostics = true;
+    // Check for --no-diagnostics flag or config setting
+    bool show_diagnostics = config.show_diagnostics;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--no-diagnostics") == 0) {
             show_diagnostics = false;
@@ -94,12 +130,14 @@ int main(int argc, char *argv[]) {
     // Ignore SIGPIPE to prevent crashes on broken pipes
     signal(SIGPIPE, SIG_IGN);
 
-    printf("LED Display Controller started\n");
+    printf("\n=== LED Display Controller Started ===\n");
+    printf("Screen ID: %d\n", config.screen_id);
     printf("Screen size: %dx%d\n", matrix->width(), matrix->height());
-    printf("Protocol: Direct serial on /dev/ttyUSB0 at 1000000 baud\n");
+    printf("Protocol: Direct serial on %s at %d baud\n", config.serial_port.c_str(), config.serial_baudrate);
     printf("Commands: LOAD_GIF, DISPLAY_TEXT, CLEAR_SCREEN, SET_BRIGHTNESS, GET_STATUS\n");
-    printf("Usage: %s [gif1 gif2 gif3 gif4] [--no-diagnostics]\n", argv[0]);
+    printf("Usage: %s [--config <config_file>] [--no-diagnostics] [gif1 gif2 gif3 gif4]\n", argv[0]);
     printf("Press Ctrl+C to exit\n");
+    printf("======================================\n\n");
 
     // Main loop
     while (!interrupt_received) {

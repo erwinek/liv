@@ -446,6 +446,13 @@ void* SerialProtocol::parseGifCommand(const uint8_t* payload, uint8_t length) {
     if (length == sizeof(GifCommand)) {
         // Direct copy for current format
         memcpy(cmd, payload, sizeof(GifCommand));
+        
+        // Debug: show raw bytes
+        std::cout << "parseGifCommand: Raw payload bytes: ";
+        for (int i = 0; i < 15; i++) {
+            printf("%02x ", payload[i]);
+        }
+        std::cout << std::endl;
     } else {
         // Legacy 70-byte format parser (filename 60 bytes)
         // Offsets (little-endian):
@@ -479,12 +486,8 @@ void* SerialProtocol::parseGifCommand(const uint8_t* payload, uint8_t length) {
               << " w=" << cmd->width << " h=" << cmd->height
               << " filename=" << cmd->filename << std::endl;
 
-    // Validate parameters
-    if (cmd->x_pos >= 192 || cmd->y_pos >= 192) {
-        std::cout << "parseGifCommand: position out of bounds" << std::endl;
-        free(cmd);
-        return nullptr;
-    }
+    // NOTE: Bounds check is done in DisplayManager, not here
+    // Parser doesn't know screen dimensions (could be 192x192, 64x512, etc.)
 
     std::cout << "parseGifCommand: success, returning command" << std::endl;
     return cmd;

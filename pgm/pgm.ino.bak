@@ -29,7 +29,7 @@
 
 static const char SYSLOG_APPNAME[] = "PGM";
 
-#define VERSION "5.69k"
+#define VERSION "5.69j"
 
 SimpleSyslog *pSysLog = nullptr;
 char ChipIdString[30];
@@ -316,7 +316,7 @@ void Stroboskop(int iterate) {
             QuickStartKopacz = true;
             break;
           }
-          else if(KEY_START_HAMMER && (Fram.BoxerModel == MONSTER)) {
+          else if(KEY_START_HAMMER) {
             QuickStartHammer = true;
             break;
           }
@@ -1071,7 +1071,7 @@ bool GameStart()
     }
   }
 
-  if (Fram.BoxerModel == MONSTER && (KEY_START_HAMMER || QuickStartHammer)) {
+  if(KEY_START_HAMMER || QuickStartHammer) {
     QuickStartHammer = false;
     printf("\n KEY_START_HAMMER");
     GameMode = HAMMER;
@@ -2413,8 +2413,6 @@ void loop() {
   wTimerRandom++;
 
   if(Fram.FreePlay) Fram.Credit = 55;
-  matrix.setScreenId(2);
-  matrix.displayText("PGM", 0, 500, 2, 255, 255, 255, "fonts/9x18B.bdf", 2);
 
   if(stan != SETUP_MENU) {
     if(KEY_UP) {

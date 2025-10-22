@@ -10,7 +10,7 @@
 #define NUM_LEDS3       33 + 41 + 33 + 41 
 #define NUM_LEDS3_KIDS  33 + 25 + 33 + 25 //kids - mniejsza ramka LED RGB
 #define NUM_LEDS3_COMBAT  70 + 70 //COMBAT - 2 paski z przodu po 70 LED
-#define NUM_LEDS3_FIST  106 + 106 + 106 + 106 //FIST - 4 paski z przodu po 106 LED
+#define NUM_LEDS3_FIST  106 + 106 + 106 + 106 //COMBAT - 2 paski z przodu po 70 LED
 #define NUM_LEDS3_COMBAT_KIDS  63 + 63 //COMBAT - 2 paski z przodu po 70 LED
 #define NUM_LEDS3_MONSTER  87 + 87 //Monster - 2 paski za mlotem po 87 LED
 

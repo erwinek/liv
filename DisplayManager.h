@@ -83,11 +83,11 @@ struct CommandCache {
 
 class DisplayManager {
 public:
-    DisplayManager(rgb_matrix::RGBMatrix* matrix);
+    DisplayManager(rgb_matrix::RGBMatrix* matrix, bool swap_dimensions = false, uint8_t screen_id = 1);
     ~DisplayManager();
     
     // Initialize display manager
-    bool init();
+    bool init(const std::string& serial_port = "/dev/ttyUSB0");
     
     // Process serial commands
     void processSerialCommands();
@@ -128,6 +128,7 @@ private:
     SerialProtocol serial_protocol;
     std::vector<DisplayElement> elements;
     uint8_t current_brightness;
+    uint8_t my_screen_id;  // This screen's ID
     uint64_t last_update_time;
     
     // BDF Font
@@ -145,9 +146,9 @@ private:
     // Display dirty flag - true when redraw is needed
     bool display_dirty;
     
-    // Screen bounds
-    static const int SCREEN_WIDTH = 192;
-    static const int SCREEN_HEIGHT = 192;
+    // Screen bounds (dynamically set based on matrix size)
+    int SCREEN_WIDTH;
+    int SCREEN_HEIGHT;
     
     // Helper functions
     void drawGifElement(const DisplayElement& element);

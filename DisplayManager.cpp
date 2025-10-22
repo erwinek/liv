@@ -123,10 +123,24 @@ Color8 ColorPalette::getColor(uint8_t index) {
     return palette[index];
 }
 
-DisplayManager::DisplayManager(rgb_matrix::RGBMatrix* matrix) 
-    : matrix(matrix), canvas(nullptr), current_brightness(100), last_update_time(0), diagnostic_drawn(false), display_dirty(true) {
+DisplayManager::DisplayManager(rgb_matrix::RGBMatrix* matrix, bool swap_dimensions, uint8_t screen_id) 
+    : matrix(matrix), canvas(nullptr), current_brightness(100), my_screen_id(screen_id), last_update_time(0), diagnostic_drawn(false), display_dirty(true) {
     // Initialize color palette
     ColorPalette::initialize();
+    
+    // Set screen dimensions based on matrix size
+    // V-mapper swaps dimensions in the library, so matrix reports swapped values already
+    // We need to use them directly (width becomes height, height becomes width from our perspective)
+    SCREEN_WIDTH = matrix->width();
+    SCREEN_HEIGHT = matrix->height();
+    
+    if (swap_dimensions) {
+        std::cout << "DisplayManager initialized for " << SCREEN_WIDTH << "x" << SCREEN_HEIGHT 
+                  << " screen (V-mapper active - library reports: width=" << matrix->width() 
+                  << ", height=" << matrix->height() << ")" << std::endl;
+    } else {
+        std::cout << "DisplayManager initialized for " << SCREEN_WIDTH << "x" << SCREEN_HEIGHT << " screen" << std::endl;
+    }
     
     // Load BDF font
     if (!bdf_font.loadFromFile("fonts/5x7.bdf")) {
@@ -138,16 +152,16 @@ DisplayManager::~DisplayManager() {
     serial_protocol.close();
 }
 
-bool DisplayManager::init() {
+bool DisplayManager::init(const std::string& serial_port) {
     canvas = matrix->CreateFrameCanvas();
     if (!canvas) {
         std::cerr << "Failed to create canvas" << std::endl;
         return false;
     }
     
-    // Initialize serial protocol (direct ttyUSB0 access)
-    if (!serial_protocol.init("/dev/ttyUSB0")) {
-        std::cerr << "Warning: Failed to initialize serial protocol on /dev/ttyUSB0" << std::endl;
+    // Initialize serial protocol with specified port
+    if (!serial_protocol.init(serial_port.c_str())) {
+        std::cerr << "Warning: Failed to initialize serial protocol on " << serial_port << std::endl;
         std::cerr << "Make sure ESP32 is connected and you have permission to access the port" << std::endl;
         // Continue without protocol - not critical for basic functionality
     } else {
@@ -444,7 +458,8 @@ void DisplayManager::removeElement(uint16_t x, uint16_t y) {
 }
 
 std::string DisplayManager::getStatus() {
-    std::string status = "Screen: 192x192, Elements: " + std::to_string(elements.size()) + 
+    std::string status = "Screen: " + std::to_string(SCREEN_WIDTH) + "x" + std::to_string(SCREEN_HEIGHT) + 
+                        ", Elements: " + std::to_string(elements.size()) + 
                         ", Brightness: " + std::to_string(current_brightness);
     return status;
 }
@@ -623,8 +638,19 @@ void DisplayManager::updateTextElement(DisplayElement& element) {
 }
 
 bool DisplayManager::isWithinBounds(uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
-    return (x < SCREEN_WIDTH && y < SCREEN_HEIGHT && 
-            x + width <= SCREEN_WIDTH && y + height <= SCREEN_HEIGHT);
+    bool result = (x < SCREEN_WIDTH && y < SCREEN_HEIGHT && 
+                   x + width <= SCREEN_WIDTH && y + height <= SCREEN_HEIGHT);
+    
+    if (!result) {
+        std::cout << "Bounds check FAILED: x=" << x << " y=" << y << " w=" << width << " h=" << height 
+                  << " (Screen: " << SCREEN_WIDTH << "x" << SCREEN_HEIGHT << ")" << std::endl;
+        std::cout << "  x < SCREEN_WIDTH: " << (x < SCREEN_WIDTH) << std::endl;
+        std::cout << "  y < SCREEN_HEIGHT: " << (y < SCREEN_HEIGHT) << std::endl;
+        std::cout << "  x+w <= SCREEN_WIDTH: " << (x + width) << " <= " << SCREEN_WIDTH << " = " << (x + width <= SCREEN_WIDTH) << std::endl;
+        std::cout << "  y+h <= SCREEN_HEIGHT: " << (y + height) << " <= " << SCREEN_HEIGHT << " = " << (y + height <= SCREEN_HEIGHT) << std::endl;
+    }
+    
+    return result;
 }
 
 void DisplayManager::clipToBounds(uint16_t& x, uint16_t& y, uint16_t& width, uint16_t& height) {
@@ -786,6 +812,13 @@ uint32_t DisplayManager::calculateTextChecksum(const TextCommand* cmd) {
 void DisplayManager::processGifCommand(GifCommand* cmd) {
     if (!cmd) return;
     
+    // Check if command is for this screen
+    if (cmd->screen_id != my_screen_id) {
+        std::cout << "GIF command for screen " << (int)cmd->screen_id 
+                  << " ignored (this is screen " << (int)my_screen_id << ")" << std::endl;
+        return;
+    }
+    
     // Calculate checksum for this command
     uint32_t checksum = calculateGifChecksum(cmd);
     
@@ -818,6 +851,13 @@ void DisplayManager::processGifCommand(GifCommand* cmd) {
 
 void DisplayManager::processTextCommand(TextCommand* cmd) {
     if (!cmd) return;
+    
+    // Check if command is for this screen
+    if (cmd->screen_id != my_screen_id) {
+        std::cout << "TEXT command for screen " << (int)cmd->screen_id 
+                  << " ignored (this is screen " << (int)my_screen_id << ")" << std::endl;
+        return;
+    }
     
     // Calculate checksum for this command
     uint32_t checksum = calculateTextChecksum(cmd);
@@ -863,12 +903,26 @@ void DisplayManager::processTextCommand(TextCommand* cmd) {
 void DisplayManager::processClearCommand(ClearCommand* cmd) {
     if (!cmd) return;
     
+    // Check if command is for this screen
+    if (cmd->screen_id != my_screen_id) {
+        std::cout << "CLEAR command for screen " << (int)cmd->screen_id 
+                  << " ignored (this is screen " << (int)my_screen_id << ")" << std::endl;
+        return;
+    }
+    
     clearScreen();
     serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
 }
 
 void DisplayManager::processClearTextCommand(ClearCommand* cmd) {
     if (!cmd) return;
+    
+    // Check if command is for this screen
+    if (cmd->screen_id != my_screen_id) {
+        std::cout << "CLEAR_TEXT command for screen " << (int)cmd->screen_id 
+                  << " ignored (this is screen " << (int)my_screen_id << ")" << std::endl;
+        return;
+    }
     
     std::cout << "Processing CLEAR_TEXT command" << std::endl;
     clearText();
@@ -877,6 +931,13 @@ void DisplayManager::processClearTextCommand(ClearCommand* cmd) {
 
 void DisplayManager::processDeleteElementCommand(DeleteElementCommand* cmd) {
     if (!cmd) return;
+    
+    // Check if command is for this screen
+    if (cmd->screen_id != my_screen_id) {
+        std::cout << "DELETE_ELEMENT command for screen " << (int)cmd->screen_id 
+                  << " ignored (this is screen " << (int)my_screen_id << ")" << std::endl;
+        return;
+    }
     
     std::cout << "Processing DELETE_ELEMENT command: element_id=" << (int)cmd->element_id << std::endl;
     
@@ -912,12 +973,26 @@ void DisplayManager::processDeleteElementCommand(DeleteElementCommand* cmd) {
 void DisplayManager::processBrightnessCommand(BrightnessCommand* cmd) {
     if (!cmd) return;
     
+    // Check if command is for this screen
+    if (cmd->screen_id != my_screen_id) {
+        std::cout << "BRIGHTNESS command for screen " << (int)cmd->screen_id 
+                  << " ignored (this is screen " << (int)my_screen_id << ")" << std::endl;
+        return;
+    }
+    
     setBrightness(cmd->brightness);
     serial_protocol.sendResponse(cmd->screen_id, RESP_OK);
 }
 
 void DisplayManager::processStatusCommand(StatusCommand* cmd) {
     if (!cmd) return;
+    
+    // Check if command is for this screen
+    if (cmd->screen_id != my_screen_id) {
+        std::cout << "STATUS command for screen " << (int)cmd->screen_id 
+                  << " ignored (this is screen " << (int)my_screen_id << ")" << std::endl;
+        return;
+    }
     
     std::string status = getStatus();
     serial_protocol.sendResponse(cmd->screen_id, RESP_OK, 
@@ -934,60 +1009,71 @@ void DisplayManager::resetCache() {
 }
 
 void DisplayManager::addDiagnosticElements() {
-    // Draw simple test pattern directly on canvas
-    std::cout << "Drawing diagnostic pattern directly on canvas..." << std::endl;
+    // Draw full green matrix with "ProGames" text in center
+    std::cout << "Drawing diagnostic pattern: Full green matrix with ProGames..." << std::endl;
     
     // Clear canvas first
     canvas->Clear();
     
-    // Draw corner squares using 8-bit colors
-    Color8 red = ColorPalette::getColor(2);      // Red
-    Color8 green = ColorPalette::getColor(3);    // Green  
-    Color8 blue = ColorPalette::getColor(4);     // Blue
-    Color8 yellow = ColorPalette::getColor(5);   // Yellow
-    
-    for (int y = 0; y < 20; y++) {
-        for (int x = 0; x < 20; x++) {
-            canvas->SetPixel(x, y, red.r, red.g, red.b);        // Red top-left
-            canvas->SetPixel(SCREEN_WIDTH-1-x, y, green.r, green.g, green.b);      // Green top-right
-            canvas->SetPixel(x, SCREEN_HEIGHT-1-y, blue.r, blue.g, blue.b);     // Blue bottom-left
-            canvas->SetPixel(SCREEN_WIDTH-1-x, SCREEN_HEIGHT-1-y, yellow.r, yellow.g, yellow.b); // Yellow bottom-right
+    // Fill entire screen with green
+    Color8 green = ColorPalette::getColor(3);    // Green
+    for (int y = 0; y < SCREEN_HEIGHT; y++) {
+        for (int x = 0; x < SCREEN_WIDTH; x++) {
+            canvas->SetPixel(x, y, green.r/5, green.g/5, green.b/5);
         }
     }
     
-    // Draw center cross using white color
-    Color8 white = ColorPalette::getColor(1);    // White
-    for (int i = 0; i < 20; i++) {
-        canvas->SetPixel(SCREEN_WIDTH/2 + i, SCREEN_HEIGHT/2, white.r, white.g, white.b);  // Horizontal
-        canvas->SetPixel(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + i, white.r, white.g, white.b);  // Vertical
+    // Draw "ProGames" text in center using white color
+    std::string text = "ProGames";
+    
+    // Choose font size based on screen width (smaller for narrow screens)
+    uint8_t font_size;
+    if (SCREEN_WIDTH < 100) {
+        // For narrow vertical screens (64px wide), use smaller font
+        font_size = 1;
+        text = "Pro\nGames";  // Split into two lines for narrow screen
+    } else {
+        font_size = 4;
     }
     
-    // Draw border using white color
-    for (int i = 0; i < SCREEN_WIDTH; i++) {
-        canvas->SetPixel(i, 0, white.r, white.g, white.b);           // Top border
-        canvas->SetPixel(i, SCREEN_HEIGHT-1, white.r, white.g, white.b); // Bottom border
-    }
-    for (int i = 0; i < SCREEN_HEIGHT; i++) {
-        canvas->SetPixel(0, i, white.r, white.g, white.b);           // Left border
-        canvas->SetPixel(SCREEN_WIDTH-1, i, white.r, white.g, white.b); // Right border
-    }
+    // Estimate text width (approximately 6 pixels per character * font_size)
+    int text_width = 8 * 6 * font_size;  // "ProGames" or longest line
+    int text_height = 8 * font_size;
     
-    // Draw test text "LED" using the new bitmap font
-    std::cout << "Drawing test text 'LED' on diagnostic screen..." << std::endl;
-    drawString("LED", 50, 50, 4, 1);  // White text at (50,50) size 4 (color index 1 = white)
+    // Calculate center position
+    int center_x = (SCREEN_WIDTH - text_width) / 2;
+    int center_y = (SCREEN_HEIGHT - text_height) / 2;
+    
+
+    for (int y = 0; y < SCREEN_HEIGHT-10; y++) {
+            canvas->SetPixel(0, y, 100, green.g/5, green.b/5);
+    }
+
+    // For vertical screens, draw text vertically centered
+    if (SCREEN_WIDTH < 100) {
+        // Draw "Pro" and "Games" on separate lines for narrow screen
+        center_x = (SCREEN_WIDTH - 3 * 6 * font_size) / 2;  // "Pro" = 3 chars
+        int line_height = 8 * font_size + 2;  // Add small gap
+        int center_y_line1 = (SCREEN_HEIGHT - 2 * line_height) / 2;
+        
+        std::cout << "Drawing 'Pro' at (" << center_x << "," << center_y_line1 << ")" << std::endl;
+        for (int i=0; i<50; i++) {
+            drawString("Pro", 0, i * 10, font_size, 1);
+        }
+        
+        
+        center_x = (SCREEN_WIDTH - 5 * 6 * font_size) / 2;  // "Games" = 5 chars
+        int center_y_line2 = center_y_line1 + line_height;
+        
+        std::cout << "Drawing 'Games' at (" << center_x << "," << center_y_line2 << ")" << std::endl;
+        drawString("Games", center_x, center_y_line2, font_size, 1);
+    } else {
+        std::cout << "Drawing 'ProGames' at center (" << center_x << "," << center_y << ")" << std::endl;
+        drawString(text, center_x, center_y, font_size, 1);  // White text (color index 1 = white)
+    }
     
     // Force immediate display
     canvas = matrix->SwapOnVSync(canvas, 1);
     
-    // Test: draw a simple rectangle after SwapOnVSync to see if it appears
-    std::cout << "Drawing test rectangle after SwapOnVSync..." << std::endl;
-    Color8 magenta = ColorPalette::getColor(6);  // Magenta
-    for (int i = 0; i < 20; i++) {
-        for (int j = 0; j < 20; j++) {
-            canvas->SetPixel(100 + i, 100 + j, magenta.r, magenta.g, magenta.b);  // Magenta rectangle
-        }
-    }
-    canvas = matrix->SwapOnVSync(canvas, 1);
-    
-    std::cout << "Diagnostic pattern drawn - you should see colored squares in corners, white border, 'LED' text, and magenta rectangle" << std::endl;
+    std::cout << "Diagnostic pattern drawn - green matrix with ProGames in center" << std::endl;
 }

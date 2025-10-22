@@ -1,49 +1,53 @@
 #!/bin/bash
 
-# Kill all led-image-viewer processes
+# Kill all led-image-viewer processes (including sudo wrappers)
 echo "Killing all led-image-viewer processes..."
 
-# Find all processes
-PIDS=$(pgrep -f led-image-viewer)
-
-if [ -z "$PIDS" ]; then
-    echo "No led-image-viewer processes found"
-    exit 0
-fi
-
-echo "Found processes: $PIDS"
-
-# Try graceful shutdown first (SIGTERM)
-echo "Sending SIGTERM..."
-for pid in $PIDS; do
-    if kill -TERM $pid 2>/dev/null; then
-        echo "Sent SIGTERM to PID $pid"
+# Function to kill processes with retry
+kill_processes() {
+    local signal=$1
+    local signal_name=$2
+    
+    # Find all processes (including sudo wrappers)
+    PIDS=$(pgrep -f "led-image-viewer|bin/led-image-viewer" | sort -u)
+    
+    if [ -z "$PIDS" ]; then
+        return 1  # No processes found
     fi
-done
-
-# Wait a bit for graceful shutdown
-sleep 2
-
-# Check if processes are still running
-REMAINING=$(pgrep -f led-image-viewer)
-if [ ! -z "$REMAINING" ]; then
-    echo "Some processes still running, sending SIGKILL..."
-    for pid in $REMAINING; do
-        if kill -KILL $pid 2>/dev/null; then
-            echo "Sent SIGKILL to PID $pid"
+    
+    echo "Sending $signal_name to processes: $PIDS"
+    for pid in $PIDS; do
+        # Use sudo to kill in case process runs as root
+        if sudo kill $signal $pid 2>/dev/null; then
+            echo "  Sent $signal_name to PID $pid"
         fi
     done
     
-    # Wait a bit more
-    sleep 1
+    return 0
+}
+
+# Try graceful shutdown first (SIGTERM)
+if kill_processes "-TERM" "SIGTERM"; then
+    echo "Waiting for graceful shutdown..."
+    sleep 2
     
-    # Final check
-    FINAL=$(pgrep -f led-image-viewer)
-    if [ ! -z "$FINAL" ]; then
-        echo "Warning: Some processes may still be running: $FINAL"
+    # Check if processes are still running
+    if pgrep -f "led-image-viewer|bin/led-image-viewer" > /dev/null; then
+        echo "Some processes still running, sending SIGKILL..."
+        kill_processes "-KILL" "SIGKILL"
+        sleep 1
+        
+        # Final check
+        FINAL=$(pgrep -f "led-image-viewer|bin/led-image-viewer")
+        if [ ! -z "$FINAL" ]; then
+            echo "Warning: Some processes may still be running:"
+            ps aux | grep -E "led-image-viewer|bin/led-image-viewer" | grep -v grep
+        else
+            echo "All processes killed successfully"
+        fi
     else
-        echo "All processes killed successfully"
+        echo "All processes terminated gracefully"
     fi
 else
-    echo "All processes terminated gracefully"
+    echo "No led-image-viewer processes found"
 fi

@@ -60,10 +60,10 @@ void Test(void)
         CRGB colours[] = {CRGB(0, 0, 0), CRGB(50, 0, 0), CRGB(0, 50, 0), CRGB(0, 0, 50)};
         static int i = 0;
         i++;
-        fill_solid(&leds3[0], 108, CRGB::Red);
-        fill_solid(&leds3[108], 108, CRGB::Green);
-        fill_solid(&leds3[108*2], 108, CRGB::Blue);
-        fill_solid(&leds3[108*3], 108, CRGB::Red);
+        fill_solid(&leds3[0], 106, CRGB::Red);
+        fill_solid(&leds3[106], 106, CRGB::Green);
+        fill_solid(&leds3[106*2], 106, CRGB::Blue);
+        fill_solid(&leds3[106*3], 106, CRGB::Red);
         fill_solid(leds2, num_leds2, colours[(i+1) % 4]);
         fill_solid(leds1, num_leds1, colours[(i+2) % 4]);
 
