@@ -791,6 +791,7 @@ void Choinka()
     break;
     case 3:
       matrix.loadGif("anim/4.gif", 0, 0, 192, 192, 0);
+      matrix.loadGif("anim/D4Ll-resize.gif", 0, 0, 64, 512, 10, 2);      
       fadeInOutThree( leds1, num_leds1 );
       StroboScope(leds2, num_leds2, CHSV(starthue, 255, 255));
       StroboScope1on3(leds3, num_leds3, CHSV(starthue, 255, 255));
@@ -1518,6 +1519,11 @@ bool Pomiar()
     }
     if (GameMode == HAMMER) {
       matrix.displayText("Use the hammer!", 25, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
+      matrix.displayText("Use", 20, 250, 2, 255, 255, 255, "fonts/9x18B.bdf", 15, 300, 2);
+      matrix.displayText("Hammer", 5, 265, 2, 255, 255, 255, "fonts/9x18B.bdf", 16, 300, 2);
+      matrix.loadGif("anim/2Vga-resize.gif", 0, 100, 64, 64, 10, 2);
+      matrix.loadGif("anim/zielStrzalka-rotate.gif", 0, 512-73, 64, 73, 21, 2);
+      
     }
 
     DisplayPlayer(CurrentPlayer, Wynik, true);
