@@ -713,22 +713,25 @@ void Choinka()
     matrix.displayText("xxx", 0, 400 + i*10, 2, 255, 255, 0, "fonts/7x13.bdf", 4, 0);
   } 
 
+  matrix.displayText("*$* Insert Coin *$*", 10, 170, 2, 255, 255, 0, "fonts/9x18B.bdf", 1, 500);
+  matrix.displayText("PRO-GAMES POLAND", 25, 5, 2, 255, 255, 0, "fonts/9x18B.bdf", 2, 0);
+  matrix.displayText("* Monster 3in1 *", 40, 25, 2, 255, 255, 0, "fonts/7x13.bdf", 3, 0);
+
+  matrix.displayText("ProGames", 5, 300, 2, 255, 255, 255, "fonts/7x13.bdf", 15, 0, 2);
+  matrix.displayText("Poland", 12, 315, 2, 255, 255, 255, "fonts/7x13.bdf", 16, 0, 2);
+  matrix.displayText("Insert", 10, 390, 2, 255, 255, 0, "fonts/7x13.bdf", 17, 400, 2);
+  matrix.displayText("Coin", 20, 400, 2, 255, 255, 0, "fonts/7x13.bdf", 18, 400, 2);
+
   switch(LedEffectCnt) {
     case 0:
       //matrix boxer
       matrix.loadGif("anim/boxer.gif", 36, 36+2, 192-(36*2), 192-(36*2), 0, 1);
-      matrix.displayText("*$* Insert Coin *$*", 10, 170, 2, 255, 255, 0, "fonts/9x18B.bdf", 1, 500);
-      matrix.displayText("PRO-GAMES POLAND", 25, 5, 2, 255, 255, 0, "fonts/9x18B.bdf", 2, 0);
-      matrix.displayText("* Monster 3in1 *", 40, 25, 2, 255, 255, 0, "fonts/7x13.bdf", 3, 0);
+      
       
       //matrix hammer
       matrix.loadGif("anim/6h.gif", 0, 512-64, 64, 64, 10, 2);
       matrix.loadGif("anim/7.gif", 0, 200, 64, 64, 11, 2);
-      matrix.displayText("ProGames", 5, 300, 2, 255, 255, 255, "fonts/7x13.bdf", 15, 0, 2);
-      matrix.displayText("Poland", 12, 315, 2, 255, 255, 255, "fonts/7x13.bdf", 16, 0, 2);
-      matrix.displayText("Insert", 10, 390, 2, 255, 255, 0, "fonts/7x13.bdf", 17, 400, 2);
-      matrix.displayText("Coin", 20, 400, 2, 255, 255, 0, "fonts/7x13.bdf", 18, 400, 2);
-
+  
       if(Fram.BoxerMat==1) {
         fill_solid( leds1, num_leds1, CRGB::Black); 
         for(int i=LedLicznik%2;i<num_leds1;i+=2) leds1[i] = CRGB::White;
@@ -1283,6 +1286,9 @@ bool Naliczanie(uint16_t value)
   UpdateCredit();
 
   matrix.displayText(String(tempWynik).c_str(), 192/2 - String(tempWynik).length()*10, 62, 2, 0, 255, 0, "fonts/ComicNeue-Bold-48.bdf", 4, 0);
+  matrix.displayText(String(tempWynik).c_str(), 0, 160, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 20, 0, 2);
+  int procentPixel = tempWynik*512/999;
+  matrix.loadGif("anim/naliczanieHam.gif", 0, 0, 64, 512, 10, 2);
   delay(1);  
 
   if(tempWynik>999) {
@@ -1601,13 +1607,15 @@ bool Pomiar()
 
     if (Sens4Done && (GameMode == HAMMER)) {
       HammerTimeUs = TimeSens4Stop - TimeSens4Start;
-      matrix.clearScreen();
+      matrix.clearScreen(1);
+      matrix.clearScreen(2);
       delay(1);      
       Sens4Done = false;
       Wynik = 0;
       TimeSens4Stop = 0;
       TimeSens4Start = 0;      
       matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+      matrix.loadGif("anim/strzal_mlot-resize.gif", 0, 512-132, 64, 132, 10, 2);
       delay(1);      
       PlayMp3(280);
       wynik = KonwersjaCzasuNasSile(HammerTimeUs);
@@ -1716,6 +1724,9 @@ bool Pomiar()
       vTaskDelay(2);
       Wynik = wynik;
       char WynikStr[10];      
+
+      matrix.loadGif("anim/taniec.gif", 0, 0, 192, 192, 0, 1);
+      matrix.loadGif("anim/gwiazdki.gif", 0, 0, 64, 512, 10, 2);
       
       if (GameMode==BOXER) {
         Matrix_SetText1("Reaction Time", true);
@@ -1867,7 +1878,8 @@ bool EndGame() {
   Sens4Done = false;
   TimeSens4Stop = 0;
   TimeSens4Start = 0;
-  matrix.clearScreen();
+  matrix.clearScreen(1);
+  matrix.clearScreen(2);
   return ret;
 }
 

@@ -1019,47 +1019,14 @@ void DisplayManager::addDiagnosticElements() {
     // Clear canvas first
     canvas->Clear();
     
-    // Fill entire screen with green
-    Color8 green = ColorPalette::getColor(3);    // Green
-    for (int y = 0; y < SCREEN_HEIGHT; y++) {
-        for (int x = 0; x < SCREEN_WIDTH; x++) {
-            canvas->SetPixel(x, y, green.r/5, green.g/5, green.b/5);
-        }
-    }
+    canvas->SetPixel(0, 0, 200, 0, 0);
+    canvas->SetPixel(0, 191, 0, 200, 0);
     
-    // Draw "ProGames" text in center using white color
-    std::string text = "ProGames";
-    
-    // Choose font size based on screen width (smaller for narrow screens)
-    uint8_t font_size;
-    if (SCREEN_WIDTH < 100) {
-        // For narrow vertical screens (64px wide), use smaller font
-        font_size = 1;
-        text = "Pro\nGames";  // Split into two lines for narrow screen
-    } else {
-        font_size = 4;
-    }
-    
-    // Estimate text width (approximately 6 pixels per character * font_size)
-    int text_width = 8 * 6 * font_size;  // "ProGames" or longest line
-    int text_height = 8 * font_size;
-    
-    // Calculate center position
-    int center_x = (SCREEN_WIDTH - text_width) / 2;
-    int center_y = (SCREEN_HEIGHT - text_height) / 2;
-        
     // For vertical screens, draw text vertically centered
-    if (SCREEN_WIDTH < 100) {
-        // Draw "Pro" and "Games" on separate lines for narrow screen
-        
-        canvas->SetPixel(0, 0, 200, 0, 0);
-        canvas->SetPixel(0, 192, 0, 200, 0);
+    if (SCREEN_WIDTH > 100) {
+        canvas->SetPixel(0, 64*7, 0, 200, 0);        
         canvas->SetPixel(0, 64*8, 0, 200, 0);        
-          
-    } else {
-        std::cout << "Drawing 'ProGames' at center (" << center_x << "," << center_y << ")" << std::endl;
-        drawString(text, center_x, center_y, font_size, 1);  // White text (color index 1 = white)
-    }
+    } 
     
     // Force immediate display
     canvas = matrix->SwapOnVSync(canvas, 1);
