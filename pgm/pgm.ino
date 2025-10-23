@@ -723,7 +723,7 @@ void Choinka()
       
       //matrix hammer
       matrix.loadGif("anim/6h.gif", 0, 512-64, 64, 64, 10, 2);
-      matrix.loadGif("anim/7.gif", 0, 51-128, 64, 64, 11, 2);
+      matrix.loadGif("anim/7.gif", 0, 200, 64, 64, 11, 2);
       matrix.displayText("ProGames", 5, 300, 2, 255, 255, 255, "fonts/7x13.bdf", 15, 0, 2);
       matrix.displayText("Poland", 12, 315, 2, 255, 255, 255, "fonts/7x13.bdf", 16, 0, 2);
       matrix.displayText("Insert", 10, 390, 2, 255, 255, 0, "fonts/7x13.bdf", 17, 400, 2);
@@ -756,6 +756,8 @@ void Choinka()
         DisplayRekord(Fram.Record);
     break;
     case 2:
+    
+      matrix.loadGif("anim/7t4e-resize.gif", 0, 200, 64, 64, 11, 2);
       matrix.loadGif("anim/2.gif", 0, 0, 192, 192, 0);
       if(Fram.BoxerMat==1) {
         LedNightRiderWhite(leds1, num_leds1);
@@ -774,6 +776,7 @@ void Choinka()
       else DisplayRekord(0xFFFF);
     break;
     case 1:
+      matrix.loadGif("anim/1.gif", 0, 200, 64, 64, 11, 2);      
       matrix.loadGif("anim/3.gif", 0, 0, 192, 192, 0);
       if(Fram.BoxerMat==1) {        
         fadeInOutWhite( leds1, num_leds1 );
@@ -964,13 +967,17 @@ bool GameStart()
   cntGruchaZamknieta = 0;
 
   if (firstEntry==true) {
-    matrix.clearScreen();
+    matrix.clearScreen(1);
+    matrix.clearScreen(2);
     delay(1);    
     firstEntryGameStart = false;    
   }
 
   DisplayGameMatrix();
   matrix.displayText("Press Start!", 30, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
+  matrix.displayText("Press", 20, 300, 2, 255, 255, 255, "fonts/7x13.bdf", 15, 300, 2);
+  matrix.displayText("Start", 20, 315, 2, 255, 255, 255, "fonts/7x13.bdf", 16, 300, 2);
+  matrix.loadGif("anim/palec-resize.gif", 0, 512-128, 64, 64, 10, 2);
   delay(1);
   
   Zar.Z9_Logo = 1;
