@@ -684,7 +684,7 @@ void setup() {
   matrix.setBrightness(50, 2);
     
   matrix.displayText("ProGames", 0, 0, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 1);
-  matrix.displayText("ProGames", 0, 0, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 1, 2);
+  matrix.displayText("ProGames", 0, 0, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 2, 2);
 }
 
 
@@ -715,11 +715,19 @@ void Choinka()
 
   switch(LedEffectCnt) {
     case 0:
-      matrix.loadGif("anim/boxer.gif", 36, 36+2, 192-(36*2), 192-(36*2), 0);
+      //matrix boxer
+      matrix.loadGif("anim/boxer.gif", 36, 36+2, 192-(36*2), 192-(36*2), 0, 1);
       matrix.displayText("*$* Insert Coin *$*", 10, 170, 2, 255, 255, 0, "fonts/9x18B.bdf", 1, 500);
       matrix.displayText("PRO-GAMES POLAND", 25, 5, 2, 255, 255, 0, "fonts/9x18B.bdf", 2, 0);
       matrix.displayText("* Monster 3in1 *", 40, 25, 2, 255, 255, 0, "fonts/7x13.bdf", 3, 0);
       
+      //matrix hammer
+      matrix.loadGif("anim/6h.gif", 0, 512-64, 64, 64, 10, 2);
+      matrix.loadGif("anim/7.gif", 0, 51-128, 64, 64, 11, 2);
+      matrix.displayText("ProGames", 2, 340, 2, 255, 255, 255, "fonts/7x13.bdf", 15, 0, 2);
+      matrix.displayText("Poland", 2, 350, 2, 255, 255, 255, "fonts/7x13.bdf", 16, 0, 2);
+      matrix.displayText("Insert", 2, 390, 2, 255, 255, 0, "fonts/7x13.bdf", 17, 400, 2);
+      matrix.displayText("Coin", 10, 400, 2, 255, 255, 0, "fonts/7x13.bdf", 18, 400, 2);
 
       if(Fram.BoxerMat==1) {
         fill_solid( leds1, num_leds1, CRGB::Black); 
@@ -2422,11 +2430,7 @@ void loop() {
   wTimerRandom++;
 
   if(Fram.FreePlay) Fram.Credit = 55;
-  matrix.setScreenId(2);
-  delay(1);
-  matrix.displayText("PGM", 0, 440, 2, 255, 255, 255, "fonts/9x18B.bdf", 10);
-  delay(1);
-
+  
   if(stan != SETUP_MENU) {
     if(KEY_UP) {
       if (Fram.Mp3Volume<30) Fram.Mp3Volume++;
