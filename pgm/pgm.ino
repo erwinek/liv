@@ -677,10 +677,14 @@ void setup() {
   DisplayPlayer(2, 0xFFFF);
   DisplayPlayer(3, 0xFFFF);
 
-  matrix.clearScreen();
-  delay(10);
+  matrix.clearScreen(1);
+  matrix.clearScreen(2);
+
+  matrix.setBrightness(50, 1);
+  matrix.setBrightness(50, 2);
+    
   matrix.displayText("ProGames", 0, 0, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 1);
-  
+  matrix.displayText("ProGames", 0, 0, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 1, 2);
 }
 
 
@@ -705,7 +709,7 @@ void Choinka()
   QuickStartKopacz = false;
   QuickStartHammer = false;
   for (int i=0;i<10;i++) {
-    delay(10);
+    delay(5);
     matrix.displayText("xxx", 0, 400 + i*10, 2, 255, 255, 0, "fonts/7x13.bdf", 4, 0);
   } 
 
