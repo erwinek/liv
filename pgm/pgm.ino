@@ -975,9 +975,9 @@ bool GameStart()
 
   DisplayGameMatrix();
   matrix.displayText("Press Start!", 30, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
-  matrix.displayText("Press", 20, 300, 2, 255, 255, 255, "fonts/7x13.bdf", 15, 300, 2);
-  matrix.displayText("Start", 20, 315, 2, 255, 255, 255, "fonts/7x13.bdf", 16, 300, 2);
-  matrix.loadGif("anim/palec-resize.gif", 0, 512-128, 64, 64, 10, 2);
+  matrix.displayText("Press", 20, 250, 2, 255, 255, 255, "fonts/7x13.bdf", 15, 300, 2);
+  matrix.displayText("Start", 20, 265, 2, 255, 255, 255, "fonts/7x13.bdf", 16, 300, 2);
+  matrix.loadGif("anim/palec-resize.gif", 0, 350, 64, 64, 10, 2);
   delay(1);
   
   Zar.Z9_Logo = 1;

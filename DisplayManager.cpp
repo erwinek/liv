@@ -1047,30 +1047,15 @@ void DisplayManager::addDiagnosticElements() {
     // Calculate center position
     int center_x = (SCREEN_WIDTH - text_width) / 2;
     int center_y = (SCREEN_HEIGHT - text_height) / 2;
-    
-
-    for (int y = 0; y < SCREEN_HEIGHT-10; y++) {
-            canvas->SetPixel(0, y, 100, green.g/5, green.b/5);
-    }
-
+        
     // For vertical screens, draw text vertically centered
     if (SCREEN_WIDTH < 100) {
         // Draw "Pro" and "Games" on separate lines for narrow screen
-        center_x = (SCREEN_WIDTH - 3 * 6 * font_size) / 2;  // "Pro" = 3 chars
-        int line_height = 8 * font_size + 2;  // Add small gap
-        int center_y_line1 = (SCREEN_HEIGHT - 2 * line_height) / 2;
         
-        std::cout << "Drawing 'Pro' at (" << center_x << "," << center_y_line1 << ")" << std::endl;
-        for (int i=0; i<50; i++) {
-            drawString("Pro", 0, i * 10, font_size, 1);
-        }
-        
-        
-        center_x = (SCREEN_WIDTH - 5 * 6 * font_size) / 2;  // "Games" = 5 chars
-        int center_y_line2 = center_y_line1 + line_height;
-        
-        std::cout << "Drawing 'Games' at (" << center_x << "," << center_y_line2 << ")" << std::endl;
-        drawString("Games", center_x, center_y_line2, font_size, 1);
+        canvas->SetPixel(0, 0, 200, 0, 0);
+        canvas->SetPixel(0, 192, 0, 200, 0);
+        canvas->SetPixel(0, 64*8, 0, 200, 0);        
+          
     } else {
         std::cout << "Drawing 'ProGames' at center (" << center_x << "," << center_y << ")" << std::endl;
         drawString(text, center_x, center_y, font_size, 1);  // White text (color index 1 = white)
