@@ -704,6 +704,10 @@ void Choinka()
   QuickStartBoxer = false;
   QuickStartKopacz = false;
   QuickStartHammer = false;
+  for (int i=0;i<10;i++) {
+    delay(10);
+    matrix.displayText("xxx", 0, 400 + i*10, 2, 255, 255, 0, "fonts/7x13.bdf", 4, 0);
+  } 
 
   switch(LedEffectCnt) {
     case 0:
@@ -711,6 +715,7 @@ void Choinka()
       matrix.displayText("*$* Insert Coin *$*", 10, 170, 2, 255, 255, 0, "fonts/9x18B.bdf", 1, 500);
       matrix.displayText("PRO-GAMES POLAND", 25, 5, 2, 255, 255, 0, "fonts/9x18B.bdf", 2, 0);
       matrix.displayText("* Monster 3in1 *", 40, 25, 2, 255, 255, 0, "fonts/7x13.bdf", 3, 0);
+      
 
       if(Fram.BoxerMat==1) {
         fill_solid( leds1, num_leds1, CRGB::Black); 
@@ -2414,7 +2419,9 @@ void loop() {
 
   if(Fram.FreePlay) Fram.Credit = 55;
   matrix.setScreenId(2);
-  matrix.displayText("PGM", 0, 500, 2, 255, 255, 255, "fonts/9x18B.bdf", 2);
+  delay(1);
+  matrix.displayText("PGM", 0, 440, 2, 255, 255, 255, "fonts/9x18B.bdf", 10);
+  delay(1);
 
   if(stan != SETUP_MENU) {
     if(KEY_UP) {

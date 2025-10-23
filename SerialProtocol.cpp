@@ -512,15 +512,15 @@ void* SerialProtocol::parseTextCommand(const uint8_t* payload, uint8_t length) {
     std::cout << "parseTextCommand: x=" << cmd->x_pos << " y=" << cmd->y_pos 
               << " text_length=" << (int)cmd->text_length << std::endl;
     
-    // Validate parameters
-    if (cmd->x_pos >= 192 || cmd->y_pos >= 192 || 
-        cmd->text_length > PROTOCOL_MAX_TEXT_LENGTH) {
-        std::cout << "parseTextCommand: validation failed" << std::endl;
+    // Validate text length only (bounds check is done in DisplayManager)
+    // Parser doesn't know screen dimensions (could be 192x192, 64x512, etc.)
+    if (cmd->text_length > PROTOCOL_MAX_TEXT_LENGTH) {
+        std::cout << "parseTextCommand: text_length too large" << std::endl;
         free(cmd);
         return nullptr;
     }
     
-    std::cout << "parseTextCommand: success, returning command" << std::endl;
+    std::cout << "parseTextCommand: success, text=" << cmd->text << std::endl;
     return cmd;
 }
 

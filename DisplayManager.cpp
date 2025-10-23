@@ -686,6 +686,8 @@ void DisplayManager::drawChar(char c, uint16_t x, uint16_t y, uint8_t font_size,
         }
         return;
     }
+
+    
     
     // Debug prints removed for performance
     int bytes_per_row = (bdf_char->width + 7) / 8;
@@ -898,6 +900,8 @@ void DisplayManager::processTextCommand(TextCommand* cmd) {
         std::cout << "Failed to add text element" << std::endl;
         serial_protocol.sendResponse(cmd->screen_id, RESP_INVALID_PARAMS);
     }
+
+    canvas->SetPixel(1, 511, 255, 0, 0);
 }
 
 void DisplayManager::processClearCommand(ClearCommand* cmd) {
