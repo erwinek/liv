@@ -18,44 +18,51 @@ void LEDMatrix::begin(uint32_t baudrate) {
 }
 
 // Wyczyść ekran
-void LEDMatrix::clearScreen() {
-    sendPacket(CMD_CLEAR_SCREEN, nullptr, 0);
+void LEDMatrix::clearScreen(uint8_t screen_id) {
+    uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
+    sendPacket(CMD_CLEAR_SCREEN, nullptr, 0, targetScreen);
 }
 
 // Wyczyść tylko tekst (pozostaw GIFy)
-void LEDMatrix::clearText() {
-    sendPacket(CMD_CLEAR_TEXT, nullptr, 0);
+void LEDMatrix::clearText(uint8_t screen_id) {
+    uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
+    sendPacket(CMD_CLEAR_TEXT, nullptr, 0, targetScreen);
 }
 
 // Usuń konkretny element po ID
-void LEDMatrix::deleteElement(uint8_t elementId) {
+void LEDMatrix::deleteElement(uint8_t elementId, uint8_t screen_id) {
     uint8_t payload[1];
     payload[0] = elementId;
     
-    sendPacket(CMD_DELETE_ELEMENT, payload, 1);
+    uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
+    sendPacket(CMD_DELETE_ELEMENT, payload, 1, targetScreen);
 }
 
 // Ustaw jasność
-void LEDMatrix::setBrightness(uint8_t brightness) {
+void LEDMatrix::setBrightness(uint8_t brightness, uint8_t screen_id) {
     if (brightness > 100) brightness = 100;
     
     uint8_t payload[1];
     payload[0] = brightness;
     
-    sendPacket(CMD_SET_BRIGHTNESS, payload, 1);
+    uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
+    sendPacket(CMD_SET_BRIGHTNESS, payload, 1, targetScreen);
 }
 
 // Wyświetl tekst
 void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y, 
                             uint8_t fontSize, uint8_t r, uint8_t g, uint8_t b,
                             const char* fontName, uint8_t elementId,
-                            uint16_t blinkIntervalMs) {
+                            uint16_t blinkIntervalMs, uint8_t screen_id) {
     // Ograniczenie długości tekstu
     uint8_t textLen = strlen(text);
     if (textLen > 31) textLen = 31;
     
     // Ograniczenie częstotliwości migania (0-1000 ms)
     if (blinkIntervalMs > 1000) blinkIntervalMs = 1000;
+    
+    // Określ docelowy ekran
+    uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
     
     // TextCommand structure (zgodna z led-image-viewer):
     // screen_id (1) + command (1) + element_id (1) + x_pos (2) + y_pos (2) +
@@ -65,7 +72,7 @@ void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y,
     memset(payload, 0, 77);
     
     // screen_id
-    payload[0] = _screenId;
+    payload[0] = targetScreen;
     
     // command  
     payload[1] = CMD_DISPLAY_TEXT;
@@ -101,19 +108,22 @@ void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y,
     payload[75] = blinkIntervalMs & 0xFF;
     payload[76] = (blinkIntervalMs >> 8) & 0xFF;
     
-    sendPacket(CMD_DISPLAY_TEXT, payload, 77);
+    sendPacket(CMD_DISPLAY_TEXT, payload, 77, targetScreen);
 }
 
 // Załaduj GIF
 void LEDMatrix::loadGif(const char* filename, uint16_t x, uint16_t y, 
-                        uint16_t width, uint16_t height, uint8_t elementId) {
+                        uint16_t width, uint16_t height, uint8_t elementId, uint8_t screen_id) {
+    // Określ docelowy ekran
+    uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
+    
     // GifCommand structure (zgodna z led-image-viewer):
     // screen_id (1) + command (1) + element_id (1) + x (2) + y (2) + width (2) + height (2) + filename (64) = 75 bytes
     uint8_t payload[75];
     memset(payload, 0, 75);
     
     // screen_id
-    payload[0] = _screenId;
+    payload[0] = targetScreen;
     
     // command
     payload[1] = CMD_LOAD_GIF;
@@ -140,7 +150,7 @@ void LEDMatrix::loadGif(const char* filename, uint16_t x, uint16_t y,
     // Kopiuj nazwę pliku (64 bytes)
     strncpy((char*)&payload[11], filename, 63);
     
-    sendPacket(CMD_LOAD_GIF, payload, 75);
+    sendPacket(CMD_LOAD_GIF, payload, 75, targetScreen);
 }
 
 // Ustaw ID ekranu
@@ -154,7 +164,10 @@ uint8_t LEDMatrix::getScreenId() const {
 }
 
 // Wysyłanie pakietu
-void LEDMatrix::sendPacket(uint8_t command, const uint8_t* payload, uint8_t payloadLength) {
+void LEDMatrix::sendPacket(uint8_t command, const uint8_t* payload, uint8_t payloadLength, uint8_t screen_id) {
+    // Określ docelowy ekran
+    uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
+    
     // Debug - wyświetl pakiet (zakomentowane, bo koliduje z komunikacją przez ten sam Serial)
     // printPacket(command, payload, payloadLength);
     
@@ -165,7 +178,7 @@ void LEDMatrix::sendPacket(uint8_t command, const uint8_t* payload, uint8_t payl
     
     // Buduj i wysyłaj pakiet
     _serial->write(PROTOCOL_SOF);           // Start of Frame (0x55)
-    _serial->write(_screenId);              // Screen ID
+    _serial->write(targetScreen);           // Screen ID
     _serial->write(command);                // Command
     _serial->write(payloadLength);          // Payload Length
     

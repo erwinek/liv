@@ -2,6 +2,10 @@
 
 Biblioteka do sterowania matrycą LED za pomocą ESP32 i Raspberry Pi przez komunikację szeregową.
 
+## ✨ Najnowsza wersja 1.2.0
+
+🎉 **Obsługa wielu ekranów LED!** Wszystkie metody teraz przyjmują opcjonalny parametr `screen_id`, dzięki czemu możesz łatwo kontrolować wiele ekranów z jednej instancji biblioteki.
+
 ## 📦 Instalacja
 
 ### Arduino IDE
@@ -48,6 +52,34 @@ void loop() {
 }
 ```
 
+## 🎯 Obsługa wielu ekranów (NOWOŚĆ v1.2.0)
+
+Wszystkie metody biblioteki teraz przyjmują opcjonalny parametr `screen_id`:
+
+```cpp
+LEDMatrix matrix(Serial1, 1);  // Domyślny ekran = 1
+
+void setup() {
+    matrix.begin(1000000);
+    
+    // Kontroluj oba ekrany z jednej instancji!
+    matrix.clearScreen(1);      // Wyczyść ekran 1
+    matrix.clearScreen(2);      // Wyczyść ekran 2
+    
+    // Różny tekst na każdym ekranie
+    matrix.displayText("Screen 1", 0, 0, 16, 255, 0, 0, "6x10", 1, 0, 1);
+    matrix.displayText("Screen 2", 0, 0, 16, 0, 255, 0, "6x10", 2, 0, 2);
+    
+    // Różne GIFy
+    matrix.loadGif("icon.gif", 0, 20, 32, 32, 10, 1);   // Ekran 1
+    matrix.loadGif("heart.gif", 0, 20, 32, 32, 11, 2);  // Ekran 2
+}
+```
+
+**Jak działa `screen_id`:**
+- `screen_id = 0` (lub pominięty) → użyj ekranu z konstruktora
+- `screen_id > 0` → wyślij komendę do konkretnego ekranu
+
 ## 📚 API Reference
 
 ### Inicjalizacja
@@ -57,12 +89,12 @@ Konstruktor biblioteki.
 
 **Parametry:**
 - `serial` - Port szeregowy (Serial, Serial1, Serial2)
-- `screenId` - ID ekranu (domyślnie 1)
+- `screenId` - ID ekranu domyślnego (domyślnie 1)
 
 **Przykład:**
 ```cpp
 LEDMatrix matrix(Serial);     // Domyślny ID = 1
-LEDMatrix matrix(Serial2, 5); // ID = 5
+LEDMatrix matrix(Serial2, 5); // Domyślny ID = 5
 ```
 
 #### `void begin(uint32_t baudrate = 1000000)`
@@ -89,7 +121,8 @@ void displayText(const char* text,           // Tekst do wyświetlenia
                  uint8_t r, uint8_t g, uint8_t b,  // Kolor RGB
                  const char* fontName,       // Nazwa czcionki BDF
                  uint8_t elementId,          // Unikalny ID elementu
-                 uint16_t blinkIntervalMs = 0);  // Częstotliwość migania (opcjonalny)
+                 uint16_t blinkIntervalMs = 0,   // Częstotliwość migania (opcjonalny)
+                 uint8_t screen_id = 0);     // ID ekranu (0 = domyślny)
 ```
 
 **Parametry:**
@@ -99,7 +132,8 @@ void displayText(const char* text,           // Tekst do wyświetlenia
 - `r, g, b` - Kolor RGB (0-255 każdy)
 - `fontName` - Nazwa pliku czcionki BDF (np. "ComicNeue-Regular-20.bdf")
 - `elementId` - Unikalny ID elementu (0-255), używany do aktualizacji/usuwania
-- `blinkIntervalMs` - **NOWE!** Częstotliwość migania w ms (0 = brak migania, 1-1000 = miga)
+- `blinkIntervalMs` - Częstotliwość migania w ms (0 = nie miga, 1-1000)
+- `screen_id` - **NOWOŚĆ v1.2.0!** ID ekranu (0 = użyj domyślnego, >0 = konkretny ekran)
 
 **Przykłady:**
 

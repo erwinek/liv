@@ -724,10 +724,10 @@ void Choinka()
       //matrix hammer
       matrix.loadGif("anim/6h.gif", 0, 512-64, 64, 64, 10, 2);
       matrix.loadGif("anim/7.gif", 0, 51-128, 64, 64, 11, 2);
-      matrix.displayText("ProGames", 2, 340, 2, 255, 255, 255, "fonts/7x13.bdf", 15, 0, 2);
-      matrix.displayText("Poland", 2, 350, 2, 255, 255, 255, "fonts/7x13.bdf", 16, 0, 2);
-      matrix.displayText("Insert", 2, 390, 2, 255, 255, 0, "fonts/7x13.bdf", 17, 400, 2);
-      matrix.displayText("Coin", 10, 400, 2, 255, 255, 0, "fonts/7x13.bdf", 18, 400, 2);
+      matrix.displayText("ProGames", 5, 300, 2, 255, 255, 255, "fonts/7x13.bdf", 15, 0, 2);
+      matrix.displayText("Poland", 12, 315, 2, 255, 255, 255, "fonts/7x13.bdf", 16, 0, 2);
+      matrix.displayText("Insert", 10, 390, 2, 255, 255, 0, "fonts/7x13.bdf", 17, 400, 2);
+      matrix.displayText("Coin", 20, 400, 2, 255, 255, 0, "fonts/7x13.bdf", 18, 400, 2);
 
       if(Fram.BoxerMat==1) {
         fill_solid( leds1, num_leds1, CRGB::Black); 

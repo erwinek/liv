@@ -1,3 +1,89 @@
+# Aktualizacja Biblioteki LEDMatrix - Obsługa Wielu Ekranów
+
+**Data:** 2025-10-23  
+**Wersja:** 1.2.0  
+**Status:** ✅ Gotowe do użycia
+
+---
+
+## 📋 Najnowsze zmiany (v1.2.0) - OBSŁUGA WIELU EKRANÓW
+
+### 🎯 Co zostało dodane
+
+**Wszystkie metody biblioteki LEDMatrix teraz przyjmują opcjonalny parametr `screen_id`**, co umożliwia kontrolowanie wielu ekranów LED z jednej instancji biblioteki!
+
+#### Zmodyfikowane metody:
+
+```cpp
+// Podstawowe funkcje
+void clearScreen(uint8_t screen_id = 0);
+void clearText(uint8_t screen_id = 0);
+void deleteElement(uint8_t elementId, uint8_t screen_id = 0);
+void setBrightness(uint8_t brightness, uint8_t screen_id = 0);
+
+// Wyświetlanie tekstu
+void displayText(const char* text, uint16_t x, uint16_t y, 
+                 uint8_t fontSize, uint8_t r, uint8_t g, uint8_t b,
+                 const char* fontName, uint8_t elementId,
+                 uint16_t blinkIntervalMs = 0, uint8_t screen_id = 0);
+
+// Ładowanie GIF
+void loadGif(const char* filename, uint16_t x, uint16_t y, 
+             uint16_t width, uint16_t height, uint8_t elementId, 
+             uint8_t screen_id = 0);
+```
+
+#### Jak działa parametr screen_id:
+
+- **`screen_id = 0` (wartość domyślna)** - użyj ekranu określonego w konstruktorze
+- **`screen_id > 0`** - wyślij komendę do konkretnego ekranu
+
+### 💡 Przykład użycia z 2 ekranami:
+
+```cpp
+#include <LEDMatrix.h>
+
+LEDMatrix matrix(Serial1, 1);  // Domyślny ekran = 1
+
+void setup() {
+    matrix.begin(1000000);
+    
+    // Wyczyść oba ekrany
+    matrix.clearScreen(1);  // Ekran 1
+    matrix.clearScreen(2);  // Ekran 2
+    
+    // Ustaw jasność dla obu ekranów
+    matrix.setBrightness(80, 1);  // Ekran 1: 80%
+    matrix.setBrightness(80, 2);  // Ekran 2: 80%
+    
+    // Wyświetl różny tekst na każdym ekranie
+    matrix.displayText("Screen 1", 10, 10, 1, 255, 0, 0, "6x10", 1, 0, 1);
+    matrix.displayText("Screen 2", 10, 10, 1, 0, 255, 0, "6x10", 1, 0, 2);
+    
+    // Załaduj różne GIFy
+    matrix.loadGif("/gifs/icon.gif", 0, 30, 32, 32, 10, 1);   // Ekran 1
+    matrix.loadGif("/gifs/heart.gif", 0, 30, 32, 32, 10, 2);  // Ekran 2
+}
+```
+
+### 🆕 Nowy przykład:
+
+- ✅ `examples/DualScreen/DualScreen.ino` - demonstracja kontrolowania 2 ekranów
+
+### ⚙️ Kompatybilność wsteczna:
+
+**✅ Cały stary kod będzie działał bez zmian!** Jeśli nie podasz parametru `screen_id`, użyty zostanie ekran z konstruktora.
+
+```cpp
+// Stary kod - nadal działa!
+matrix.displayText("Hello", 10, 10, 1, 255, 0, 0, "6x10", 1);
+
+// Równoważne z:
+matrix.displayText("Hello", 10, 10, 1, 255, 0, 0, "6x10", 1, 0, 0);
+```
+
+---
+
 # Aktualizacja Biblioteki LEDMatrix - Miganie Tekstu
 
 **Data:** 2025-10-19  
