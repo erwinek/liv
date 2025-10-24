@@ -12,25 +12,29 @@ LEDMatrix::LEDMatrix(HardwareSerial &serial, uint8_t screenId) {
 }
 
 // Inicjalizacja portu szeregowego
-void LEDMatrix::begin(uint32_t baudrate) {
+void LEDMatrix::begin(uint32_t baudrate, bool enable) {
     _serial->begin(baudrate);
     delay(100); // Krótkie opóźnienie na inicjalizację
+    _enable = enable;
 }
 
 // Wyczyść ekran
 void LEDMatrix::clearScreen(uint8_t screen_id) {
+    if (!_enable) return;
     uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
     sendPacket(CMD_CLEAR_SCREEN, nullptr, 0, targetScreen);
 }
 
 // Wyczyść tylko tekst (pozostaw GIFy)
 void LEDMatrix::clearText(uint8_t screen_id) {
+    if (!_enable) return;
     uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
     sendPacket(CMD_CLEAR_TEXT, nullptr, 0, targetScreen);
 }
 
 // Usuń konkretny element po ID
 void LEDMatrix::deleteElement(uint8_t elementId, uint8_t screen_id) {
+    if (!_enable) return;
     uint8_t payload[1];
     payload[0] = elementId;
     
@@ -40,6 +44,7 @@ void LEDMatrix::deleteElement(uint8_t elementId, uint8_t screen_id) {
 
 // Ustaw jasność
 void LEDMatrix::setBrightness(uint8_t brightness, uint8_t screen_id) {
+    if (!_enable) return;
     if (brightness > 100) brightness = 100;
     
     uint8_t payload[1];
@@ -54,6 +59,7 @@ void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y,
                             uint8_t fontSize, uint8_t r, uint8_t g, uint8_t b,
                             const char* fontName, uint8_t elementId,
                             uint16_t blinkIntervalMs, uint8_t screen_id) {
+    if (!_enable) return;
     // Ograniczenie długości tekstu
     uint8_t textLen = strlen(text);
     if (textLen > 31) textLen = 31;
@@ -114,6 +120,7 @@ void LEDMatrix::displayText(const char* text, uint16_t x, uint16_t y,
 // Załaduj GIF
 void LEDMatrix::loadGif(const char* filename, uint16_t x, uint16_t y, 
                         uint16_t width, uint16_t height, uint8_t elementId, uint8_t screen_id) {
+    if (!_enable) return;
     // Określ docelowy ekran
     uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
     
@@ -155,16 +162,19 @@ void LEDMatrix::loadGif(const char* filename, uint16_t x, uint16_t y,
 
 // Ustaw ID ekranu
 void LEDMatrix::setScreenId(uint8_t screenId) {
+    if (!_enable) return;
     _screenId = screenId;
 }
 
 // Pobierz ID ekranu
 uint8_t LEDMatrix::getScreenId() const {
+    if (!_enable) return 0;
     return _screenId;
 }
 
 // Wysyłanie pakietu
 void LEDMatrix::sendPacket(uint8_t command, const uint8_t* payload, uint8_t payloadLength, uint8_t screen_id) {
+    if (!_enable) return;
     // Określ docelowy ekran
     uint8_t targetScreen = (screen_id == 0) ? _screenId : screen_id;
     
@@ -218,6 +228,7 @@ uint8_t LEDMatrix::calculateChecksum(const uint8_t* data, uint8_t length) {
 
 // Debug - wyświetl pakiet w hex
 void LEDMatrix::printPacket(uint8_t command, const uint8_t* payload, uint8_t payloadLength) {
+    if (!_enable) return;
     Serial.print("\n[MTRX TX] ");
     Serial.print(PROTOCOL_SOF, HEX);
     Serial.print(" ");

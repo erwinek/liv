@@ -48,7 +48,7 @@ public:
     LEDMatrix(HardwareSerial &serial, uint8_t screenId = PROTOCOL_SCREEN_ID);
     
     // Inicjalizacja
-    void begin(uint32_t baudrate = 1000000);
+    void begin(uint32_t baudrate = 1000000, bool enable = false);
     
     // Podstawowe funkcje
     void clearScreen(uint8_t screen_id = 0);
@@ -74,6 +74,7 @@ public:
 private:
     HardwareSerial* _serial;
     uint8_t _screenId;
+    bool _enable;
     
     // Wysyłanie pakietu
     void sendPacket(uint8_t command, const uint8_t* payload, uint8_t payloadLength, uint8_t screen_id = 0);

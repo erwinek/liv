@@ -29,7 +29,7 @@
 
 static const char SYSLOG_APPNAME[] = "PGM";
 
-#define VERSION "5.69k"
+#define VERSION "5.69m"
 
 SimpleSyslog *pSysLog = nullptr;
 char ChipIdString[30];
@@ -677,14 +677,18 @@ void setup() {
   DisplayPlayer(2, 0xFFFF);
   DisplayPlayer(3, 0xFFFF);
 
-  matrix.clearScreen(1);
-  matrix.clearScreen(2);
+  if (Fram.BoxerModel==MONSTER) {
+    matrix.begin(1000000, true);
+  
+    matrix.clearScreen(1);
+    matrix.clearScreen(2);
 
-  matrix.setBrightness(50, 1);
-  matrix.setBrightness(50, 2);
+    matrix.setBrightness(50, 1);
+    matrix.setBrightness(50, 2);
     
-  matrix.displayText("ProGames", 0, 0, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 1);
-  matrix.displayText("ProGames", 0, 0, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 2, 2);
+    matrix.displayText("ProGames", 0, 0, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 1);
+    matrix.displayText("ProGames", 0, 0, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 2, 2);
+  }
 }
 
 
@@ -1287,7 +1291,6 @@ bool Naliczanie(uint16_t value)
 
   matrix.displayText(String(tempWynik).c_str(), 192/2 - String(tempWynik).length()*10, 62, 2, 0, 255, 0, "fonts/ComicNeue-Bold-48.bdf", 4, 0);
   matrix.displayText(String(tempWynik).c_str(), 0, 160, 2, 255, 255, 255, "fonts/ComicNeue-Bold-48.bdf", 20, 0, 2);
-  int procentPixel = tempWynik*512/999;
   matrix.loadGif("anim/naliczanieHam.gif", 0, 0, 64, 512, 10, 2);
   delay(1);  
 
