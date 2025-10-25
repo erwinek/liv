@@ -5,7 +5,7 @@
 #define NUM_LEDS2       12 + 16 + 8//czacha i bramka
 #define NUM_LEDS2_COMBAT  14 + 11 + 11 //czacha i LEWY + PRAWY BOK
 #define NUM_LEDS2_COMBAT_KIDS  14 + 9 + 9 //czacha i LEWY + PRAWY BOK
-#define NUM_LEDS2_MONSTER  14 + 16 + 12 //czacha, bramka 16, mlot 12
+#define NUM_LEDS2_MONSTER  14 + 16 + 12 + 16 //czacha, bramka 16, mlot 12 + 16 mlot scianka
 #define NUM_LEDS2_DOUBLE_HIT  4 + 12 + 4 + 20 //4-front, 12 czacha, 4 front, 12 bramka
 #define NUM_LEDS3       33 + 41 + 33 + 41 
 #define NUM_LEDS3_KIDS  33 + 25 + 33 + 25 //kids - mniejsza ramka LED RGB
@@ -23,7 +23,7 @@ uint8_t num_led_czacha = 12;
 volatile uint32_t dummy0 = 0x55aa55aa;
 CRGB leds1[NUM_LEDS1_MONSTER+10];
 volatile uint32_t dummy1 = 0x55aa55aa;
-CRGB leds2[NUM_LEDS2_COMBAT+10];
+CRGB leds2[NUM_LEDS2_MONSTER+10];
 volatile uint32_t dummy2 = 0x55aa55aa;
 CRGB leds3[NUM_LEDS3_FIST+10];
 volatile uint32_t dummy3 = 0x55aa55aa;
@@ -41,6 +41,7 @@ uint8_t LiczbaLedBramka = 12;
 uint8_t LiczbaLedDaszek = 12;
 uint8_t LiczbaLedBoki = 0;
 uint8_t LiczbaLedMlot = 0;
+uint8_t LiczbaLedMlotScianka = 0;
 uint8_t LiczbaLedFrontLeft = 0;
 uint8_t LiczbaLedFrontRight = 0;
 
@@ -108,6 +109,7 @@ void LedInit(void)
     LiczbaLedDaszek = 25;
     LiczbaLedBoki = 0;
     LiczbaLedMlot = 12;
+    LiczbaLedMlotScianka = 16;
   }
   else if (Fram.BoxerModel==DOUBLE_HIT) {
     num_leds3 = 27 + 45 + 27; //wkolo bramki
@@ -170,7 +172,6 @@ void effect_theater_chase(CRGB *leds, int num_leds, uint8_t gHue) {
     }
   }
 
-  gHue+=5;
   effectCounter++;
 }
 
@@ -214,6 +215,7 @@ void circleLedStr2(void) {
     else {
       effect_theater_chase(&leds2[LiczbaLedFrontLeft], LiczbaLedCzacha, gHue);
       effect_theater_chase(&leds2[LiczbaLedFrontLeft+LiczbaLedCzacha+LiczbaLedFrontRight], LiczbaLedBramka, gHue+128);
+      gHue += 5;
 
       for(int i = 0; i<4; i++) { //clear front
         leds2[i] = 0;
@@ -392,8 +394,11 @@ void LedGameStart(void) {
       if (Fram.BoxerModel == FIST) fadeLightBy(leds3, num_leds3, 70);
     }
     else if (Fram.BoxerModel==MONSTER) {
+      static uint8_t gHue = 128;
       dot_beat(&leds3[0], 87);
       dot_beat(&leds3[87], 87);
+      effect_theater_chase(&leds2[LiczbaLedBramka+LiczbaLedCzacha+LiczbaLedMlot], LiczbaLedMlotScianka, gHue);
+      gHue += 5;
     }
     else if (Fram.BoxerModel==DOUBLE_HIT) {
       effect_juggle(leds3, num_leds3);

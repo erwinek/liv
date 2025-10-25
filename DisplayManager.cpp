@@ -124,7 +124,7 @@ Color8 ColorPalette::getColor(uint8_t index) {
 }
 
 DisplayManager::DisplayManager(rgb_matrix::RGBMatrix* matrix, bool swap_dimensions, uint8_t screen_id) 
-    : matrix(matrix), canvas(nullptr), current_brightness(100), my_screen_id(screen_id), last_update_time(0), diagnostic_drawn(false), display_dirty(true) {
+    : matrix(matrix), canvas(nullptr), current_brightness(90), my_screen_id(screen_id), last_update_time(0), diagnostic_drawn(false), display_dirty(true) {
     // Initialize color palette
     ColorPalette::initialize();
     
@@ -281,6 +281,9 @@ void DisplayManager::updateDisplay() {
     
     // Swap canvas only when we actually rendered something
     canvas = matrix->SwapOnVSync(canvas, 1);
+    //matrix->SetBrightness(50);
+    //led_matrix_set_brightness(matrix, 3);
+    
     last_update_time = current_time;
 }
 
