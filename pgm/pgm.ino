@@ -982,11 +982,16 @@ bool GameStart()
   matrix.displayText("Press Start!", 30, 150, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 500);
   matrix.displayText("Select Boxer Kicker Hammer", 5, 170, 2, 255, 255, 0, "fonts/7x13.bdf", 8, 500);
 
-  matrix.displayText("Boxer", 15, 60, 2, 255, 255, 255, "fonts/7x13.bdf", 38, 300, 2);
+  matrix.displayText("Start", 15, 60, 2, 255, 255, 255, "fonts/7x13.bdf", 37, 300, 2);
   matrix.loadGif("anim/palec-resize.gif", 0, 72, 64, 64, 10, 2);
-  matrix.displayText("Kicker", 15, 318, 2, 255, 255, 255, "fonts/7x13.bdf", 37, 300, 2);  
+  matrix.displayText("Boxer", 15, 72+36, 2, 255, 255, 255, "fonts/7x13.bdf", 38, 300, 2);
+  
+  matrix.displayText("Start", 15, 318, 2, 255, 255, 255, "fonts/7x13.bdf", 39, 300, 2);  
   matrix.loadGif("anim/palec-resize.gif", 0, 330, 64, 64, 11, 2);
-  matrix.displayText("Hammer", 15, 428, 2, 255, 255, 255, "fonts/7x13.bdf", 39, 300, 2);  
+  matrix.displayText("Kicker", 15, 330+36, 2, 255, 255, 255, "fonts/7x13.bdf", 40, 300, 2);  
+
+  matrix.displayText("Start", 15, 428-12, 2, 255, 255, 255, "fonts/7x13.bdf", 41, 300, 2);  
+  matrix.displayText("Hammer", 15, 428, 2, 255, 255, 255, "fonts/7x13.bdf", 42, 300, 2);  
   matrix.loadGif("anim/palec_dol.gif", 15, 440, 44, 64, 12, 2);
   
   delay(1);
