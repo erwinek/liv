@@ -982,9 +982,13 @@ bool GameStart()
   matrix.displayText("Press Start!", 30, 150, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 500);
   matrix.displayText("Select Boxer Kicker Hammer", 5, 170, 2, 255, 255, 0, "fonts/7x13.bdf", 8, 500);
 
-  matrix.displayText("Press", 15, 250, 2, 255, 255, 255, "fonts/7x13.bdf", 37, 300, 2);
-  matrix.displayText("Start", 15, 265, 2, 255, 255, 255, "fonts/7x13.bdf", 38, 300, 2);
-  matrix.loadGif("anim/palec-resize.gif", 0, 330, 64, 64, 10, 2);
+  matrix.displayText("Boxer", 15, 60, 2, 255, 255, 255, "fonts/7x13.bdf", 38, 300, 2);
+  matrix.loadGif("anim/palec-resize.gif", 0, 72, 64, 64, 10, 2);
+  matrix.displayText("Kicker", 15, 318, 2, 255, 255, 255, "fonts/7x13.bdf", 37, 300, 2);  
+  matrix.loadGif("anim/palec-resize.gif", 0, 330, 64, 64, 11, 2);
+  matrix.displayText("Hammer", 15, 428, 2, 255, 255, 255, "fonts/7x13.bdf", 39, 300, 2);  
+  matrix.loadGif("anim/palec_dol.gif", 15, 440, 44, 64, 12, 2);
+  
   delay(1);
   
   Zar.Z9_Logo = 1;
@@ -2470,8 +2474,8 @@ void DisplayGameMatrix(void) {
     matrix.displayText(String(Wynik).c_str(), (64 - (String(Wynik).length()*19))/2, 155, 2, 0, 255, 0, "fonts/Verdana-24-r.bdf", 33, 0, 2);
 
     matrix.displayText("Credit", 5, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 5, 0);
-    if (Fram.Credit==55)  matrix.displayText("Free Play", 192/2 - 10, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 6, 0);
-    else matrix.displayText(String(Fram.Credit).c_str(), 192/2 - 10, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 6, 0);
+    if (Fram.Credit==55)  matrix.displayText("Free Play", 192/2 - 15, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 6, 0);
+    else matrix.displayText(String(Fram.Credit).c_str(), 192/2 - 15, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 6, 0);
   }
 }
 
