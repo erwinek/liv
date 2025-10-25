@@ -984,7 +984,7 @@ bool GameStart()
 
   matrix.displayText("Press", 15, 250, 2, 255, 255, 255, "fonts/7x13.bdf", 37, 300, 2);
   matrix.displayText("Start", 15, 265, 2, 255, 255, 255, "fonts/7x13.bdf", 38, 300, 2);
-  matrix.loadGif("anim/palec-resize.gif", 0, 350, 64, 64, 10, 2);
+  matrix.loadGif("anim/palec-resize.gif", 0, 330, 64, 64, 10, 2);
   delay(1);
   
   Zar.Z9_Logo = 1;
@@ -1289,7 +1289,8 @@ bool Naliczanie(uint16_t value)
   UpdateCredit();
 
   matrix.displayText(String(tempWynik).c_str(), 192/2 - String(tempWynik).length()*10, 62, 2, 0, 255, 0, "fonts/ComicNeue-Bold-48.bdf", 4, 0);
-  matrix.displayText(String(Wynik).c_str(), 64/2 - String(Wynik).length()*16, 155, 2, 0, 255, 0, "fonts/Verdana-24-r.bdf", 33, 0, 2);
+  matrix.displayText("SCORE", 10, 140, 2, 0, 255, 0, "fonts/9x18B.bdf", 32, 0, 2);
+  matrix.displayText(String(tempWynik).c_str(), (64 - (String(tempWynik).length()*19))/2, 155, 2, 0, 255, 0, "fonts/Verdana-24-r.bdf", 33, 0, 2);
   matrix.loadGif("anim/naliczanieHam.gif", 0, 0, 64, 512, 10, 2);
 
   if (Fram.BoxerModel==MONSTER) {
@@ -1541,7 +1542,7 @@ bool Pomiar()
         matrix.displayText("Use the hammer!", 25, 160, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 300);    
         matrix.displayText("Use", 15, 250, 2, 255, 255, 255, "fonts/9x18B.bdf", 15, 300, 2);
         matrix.displayText("Hammer", 10, 265, 2, 255, 255, 255, "fonts/9x18B.bdf", 16, 300, 2);
-        matrix.loadGif("anim/2Vga-resize.gif", 0, 100, 64, 64, 10, 2);
+        matrix.loadGif("anim/2Vga-resize.gif", 0, 60, 64, 64, 10, 2);
         matrix.loadGif("anim/zielStrzalka-rotate.gif", 0, 512-73, 64, 73, 21, 2);      
       }
     }
@@ -2460,19 +2461,17 @@ void DisplayGameMatrix(void) {
     matrix.displayText(String(Fram.Record).c_str(), 192/2 - String(Wynik).length()*10, 16, 2, 255, 0, 0, "fonts/ComicNeue-Bold-48.bdf", 2, 0);
 
     matrix.displayText("RECORD", 5, 10, 2, 255, 0, 0, "fonts/9x18B.bdf", 30, 0, 2);
-    matrix.displayText(String(Fram.Record).c_str(), 10, 30, 2, 255, 0, 0, "fonts/9x18B.bdf", 31, 0, 2);
+    matrix.displayText(String(Fram.Record).c_str(), 15, 30, 2, 255, 0, 0, "fonts/9x18B.bdf", 31, 0, 2);
 
-    matrix.displayText("SCORE", 5, 70, 2, 0, 255, 0, "fonts/9x18B.bdf", 3, 0);
+    matrix.displayText("SCORE", 5, 75, 2, 0, 255, 0, "fonts/9x18B.bdf", 3, 0);
     matrix.displayText(String(Wynik).c_str(), 192/2 - String(Wynik).length()*10, 62, 2, 0, 255, 0, "fonts/ComicNeue-Bold-48.bdf", 4, 0);
 
-    matrix.displayText("SCORE", 0, 140, 2, 0, 255, 0, "fonts/9x18B.bdf", 32, 0, 2);
-    matrix.displayText(String(Wynik).c_str(), 64/2 - String(Wynik).length()*16, 155, 2, 0, 255, 0, "fonts/Verdana-24-r.bdf", 33, 0, 2);
+    matrix.displayText("SCORE", 10, 140, 2, 0, 255, 0, "fonts/9x18B.bdf", 32, 0, 2);
+    matrix.displayText(String(Wynik).c_str(), (64 - (String(Wynik).length()*19))/2, 155, 2, 0, 255, 0, "fonts/Verdana-24-r.bdf", 33, 0, 2);
 
     matrix.displayText("Credit", 5, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 5, 0);
     if (Fram.Credit==55)  matrix.displayText("Free Play", 192/2 - 10, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 6, 0);
     else matrix.displayText(String(Fram.Credit).c_str(), 192/2 - 10, 115, 2, 0, 0, 255, "fonts/9x18B.bdf", 6, 0);
-
-
   }
 }
 
