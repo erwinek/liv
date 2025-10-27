@@ -1301,6 +1301,19 @@ bool Naliczanie(uint16_t value)
   matrix.displayText("SCORE", 10, 140, 2, 255, 255, 255, "fonts/9x18B.bdf", 32, 0, 2);
   matrix.displayText(String(tempWynik).c_str(), (64 - (String(tempWynik).length()*19))/2, 155, 2, 255, 255, 255, "fonts/Verdana-24-r.bdf", 33, 0, 2);
   matrix.loadGif("anim/naliczanieHam.gif", 0, 0, 64, 512, 10, 2);
+  
+  char WynikStr[10];      
+  if (GameMode==BOXER) {
+    matrix.displayText("Reaction Time", 40, 130, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 0);
+    snprintf(WynikStr, 10, "%dms", 1000-tempWynik);
+  } else if (GameMode==KOPACZ) {
+    matrix.displayText("Speed of ball", 40, 130, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 0);
+    snprintf(WynikStr, 10, "%dkm/h", tempWynik/6);
+  } else {  
+    matrix.displayText("Strength", 45, 130, 2, 255, 255, 0, "fonts/9x18B.bdf", 7, 0);
+    snprintf(WynikStr, 10, "%dkN", tempWynik);
+  }
+  matrix.displayText(WynikStr, (192 - String(WynikStr).length()*19)/2, 150, 2, 255, 255, 0, "fonts/Verdana-24-r.bdf", 9, 0);
 
   if (Fram.BoxerModel==MONSTER) {
     uint16_t liczbaDiodSkalaMlot = (tempWynik * 16)/999;
@@ -1644,7 +1657,7 @@ bool Pomiar()
       Wynik = 0;
       TimeSens4Stop = 0;
       TimeSens4Start = 0;      
-      matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+      matrix.loadGif("anim/mlotkowy.gif", 0, 0, 192, 192, 0);
       matrix.loadGif("anim/strzal_mlot-resize.gif", 0, 512-132, 64, 132, 10, 2);
       delay(1);      
       PlayMp3(280);
@@ -1662,7 +1675,7 @@ bool Pomiar()
     {
       matrix.clearScreen();
       delay(1);
-      matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+      matrix.loadGif("anim/box.gif", 0, 0, 192, 192, 0);
       delay(1);
       wynik = TimeSens0Stop - StartArray[0];
       PlayMp3(280);      
@@ -1681,7 +1694,7 @@ bool Pomiar()
     {
       matrix.clearScreen();
       delay(1);
-      matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+      matrix.loadGif("anim/pilka.gif", 32, 32, 192-64, 192-64, 0);
       delay(1);
 
       PlayMp3(233);      
@@ -1708,7 +1721,7 @@ bool Pomiar()
     else if ((wynik==0) && (cntOtwartaKopacz>5) && (cntGruchaZamknieta>5) && (GameMode == KOPACZ)) {
         matrix.clearScreen();
         delay(1);
-        matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+        matrix.loadGif("anim/8.gif", 0, 0, 192, 192, 0);
         delay(1);
         PlayMp3(233);
         wynik = InterruptLogArray[InterruptTimeArrayIndex-1].timestamp - InterruptLogArray[0].timestamp;
@@ -1725,7 +1738,7 @@ bool Pomiar()
       //jesli grucha w gorze to takze zrob pomiar
         matrix.clearScreen();
         delay(1);
-        matrix.loadGif("anim/naliczanie.gif", 0, 0, 192, 192, 0);
+        matrix.loadGif("anim/8.gif", 0, 0, 192, 192, 0);
         delay(1);
         PlayMp3(280);
         wynik = InterruptLogArray[InterruptTimeArrayIndex-1].timestamp - InterruptLogArray[0].timestamp;
@@ -1753,22 +1766,10 @@ bool Pomiar()
     {
       vTaskDelay(2);
       Wynik = wynik;
-      char WynikStr[10];      
 
       matrix.loadGif("anim/taniec.gif", 0, 0, 192, 192, 0, 1);
       matrix.loadGif("anim/gwiazdki.gif", 0, 0, 64, 512, 10, 2);
       
-      if (GameMode==BOXER) {
-        Matrix_SetText1("Reaction Time", true);
-        snprintf(WynikStr, 10, "%dms", 1000-Wynik);
-      } else if (GameMode==KOPACZ) {
-        Matrix_SetText1("Speed of ball", true);
-        snprintf(WynikStr, 10, "%dkm/h", Wynik/6);
-      } else {  
-        Matrix_SetText1("Strength", true);
-        snprintf(WynikStr, 10, "%dkN", Wynik);
-      }
-      Matrix_SetText2(WynikStr, true);
       
       if(Fram.BoxerModel == GIFT_ESPANIOL) {
         if ((Wynik==333) || (Wynik==444)) RunEngineUntilGift(1);
